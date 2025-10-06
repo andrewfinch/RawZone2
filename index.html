@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>ARW → Linear XYZ 16-bit TIFF (LibRaw-Wasm)</title>
+    <style>
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 24px; }
+      .row { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; }
+      button { padding: 8px 12px; }
+      #log { white-space: pre-wrap; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; background: #f7f7f7; padding: 12px; border-radius: 8px; }
+    </style>
+  </head>
+  <body>
+    <h2>ARW → Linear XYZ 16‑bit TIFF</h2>
+    <div class="row">
+      <input id="file" type="file" accept=".arw,.ARW">
+      <button id="process">Process</button>
+    </div>
+    <div id="log" aria-live="polite"></div>
+
+    <script type="module">
+      // Exact requested settings: scene-referred linear XYZ, 16-bit, camera WB, no auto-bright
+      const settings = {
+        noAutoBright: true,
+        noAutoScale: false,
+        // Some builds use 'gamm', others 'gamma'. Provide both to be safe.
+        gamm: [1, 0],
+        outputColor: 6,
+        outputBps: 16,
+        useCameraWb: true,
+        useCameraMatrix: 3,
+      };
+
+      const fileEl = document.getElementById('file');
+      const processBtn = document.getElementById('process');
+      const logEl = document.getElementById('log');
+
+      function log(message) {
+        logEl.textContent = message;
+      }
+
+      const worker = new Worker('./raw-worker.js', { type: 'module' });
+
+      async function processFile(file) {
+        log('Reading file…');
+        const buffer = await file.arrayBuffer();
+
+        log('Decoding RAW in worker…');
+        const { out } = await new Promise((resolve, reject) => {
+          function onMessage(e) {
+            worker.removeEventListener('message', onMessage);
+            const data = e.data || {};
+            if (data.error) {
+              reject(new Error(data.error));
+              return;
+            }
+            resolve(data);
+          }
+          worker.addEventListener('message', onMessage);
+          worker.postMessage({ cmd: 'process', bytes: buffer, settings }, [buffer]);
+        });
+
+        const blob = new Blob([out], { type: 'image/tiff' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = (file.name.replace(/\.[^.]+$/, '') || 'output') + '_xyz16.tiff';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        log('Done. Downloaded TIFF.');
+      }
+
+      processBtn.addEventListener('click', function() {
+        const f = fileEl.files && fileEl.files[0];
+        if (!f) {
+          log('Please choose an .ARW file.');
+          return;
+        }
+        processBtn.disabled = true;
+        processFile(f).catch(function(err) {
+          console.error(err);
+          log('Error: ' + (err && err.message ? err.message : String(err)));
+        }).finally(function() {
+          processBtn.disabled = false;
+        });
+      });
+    </script>
+  </body>
+  </html>
+
+
