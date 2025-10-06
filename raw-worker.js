@@ -66,6 +66,138 @@ function apply709ToACEScctInPlace(u16) {
   }
 }
 
+// Math helpers for matrices
+function mat3MultiplyVec3(m, v) {
+  return [
+    m[0] * v[0] + m[1] * v[1] + m[2] * v[2],
+    m[3] * v[0] + m[4] * v[1] + m[5] * v[2],
+    m[6] * v[0] + m[7] * v[1] + m[8] * v[2]
+  ];
+}
+function mat3Multiply(a, b) {
+  return [
+    a[0]*b[0] + a[1]*b[3] + a[2]*b[6], a[0]*b[1] + a[1]*b[4] + a[2]*b[7], a[0]*b[2] + a[1]*b[5] + a[2]*b[8],
+    a[3]*b[0] + a[4]*b[3] + a[5]*b[6], a[3]*b[1] + a[4]*b[4] + a[5]*b[7], a[3]*b[2] + a[4]*b[5] + a[5]*b[8],
+    a[6]*b[0] + a[7]*b[3] + a[8]*b[6], a[6]*b[1] + a[7]*b[4] + a[8]*b[7], a[6]*b[2] + a[7]*b[5] + a[8]*b[8]
+  ];
+}
+function mat3Inverse(m) {
+  const a = m[0], b = m[1], c = m[2], d = m[3], e = m[4], f = m[5], g = m[6], h = m[7], i = m[8];
+  const A = e*i - f*h;
+  const B = -(d*i - f*g);
+  const C = d*h - e*g;
+  const D = -(b*i - c*h);
+  const E = a*i - c*g;
+  const F = -(a*h - b*g);
+  const G = b*f - c*e;
+  const H = -(a*f - c*d);
+  const I = a*e - b*d;
+  const det = a*A + b*B + c*C;
+  const invDet = 1 / det;
+  return [A*invDet, D*invDet, G*invDet, B*invDet, E*invDet, H*invDet, C*invDet, F*invDet, I*invDet];
+}
+function xyToXYZ(x, y) {
+  const X = x / y;
+  const Y = 1;
+  const Z = (1 - x - y) / y;
+  return [X, Y, Z];
+}
+function primariesToRgbToXyz(xy, wp) {
+  const [xr, yr] = xy.r, [xg, yg] = xy.g, [xb, yb] = xy.b;
+  const Pr = xyToXYZ(xr, yr);
+  const Pg = xyToXYZ(xg, yg);
+  const Pb = xyToXYZ(xb, yb);
+  const P = [Pr[0], Pg[0], Pb[0], Pr[1], Pg[1], Pb[1], Pr[2], Pg[2], Pb[2]];
+  const Pinv = mat3Inverse(P);
+  const W = xyToXYZ(wp[0], wp[1]);
+  const S = mat3MultiplyVec3(Pinv, W);
+  const M = [
+    P[0]*S[0], P[1]*S[1], P[2]*S[2],
+    P[3]*S[0], P[4]*S[1], P[5]*S[2],
+    P[6]*S[0], P[7]*S[1], P[8]*S[2]
+  ];
+  return M; // RGB->XYZ
+}
+function bradfordAdaptMatrix(srcWP, dstWP) {
+  const MB = [0.8951, 0.2664, -0.1614, -0.7502, 1.7135, 0.0367, 0.0389, -0.0685, 1.0296];
+  const MBinv = mat3Inverse(MB);
+  const XYZs = xyToXYZ(srcWP[0], srcWP[1]);
+  const XYZd = xyToXYZ(dstWP[0], dstWP[1]);
+  const LMSs = mat3MultiplyVec3(MB, XYZs);
+  const LMSd = mat3MultiplyVec3(MB, XYZd);
+  const D = [LMSd[0]/LMSs[0], 0, 0, 0, LMSd[1]/LMSs[1], 0, 0, 0, LMSd[2]/LMSs[2]];
+  return mat3Multiply(MBinv, mat3Multiply(D, MB));
+}
+
+let ap0ToAwg4Matrix = null;
+function ensureAp0ToAwg4Matrix() {
+  if (ap0ToAwg4Matrix) return ap0ToAwg4Matrix;
+  // AP0 primaries and D60 white
+  const AP0 = {
+    r: [0.7347, 0.2653],
+    g: [0.0000, 1.0000],
+    b: [0.0001, -0.0770]
+  };
+  const D60 = [0.32168, 0.33767];
+  // AWG4 primaries (provided) and D65 white
+  const AWG4 = {
+    r: [0.7347, 0.2653],
+    g: [0.1424, 0.8576],
+    b: [0.0991, -0.0308]
+  };
+  const D65 = [0.3127, 0.3290];
+  const M_ap0_rgb2xyz_d60 = primariesToRgbToXyz(AP0, D60);
+  const adapt_d60_to_d65 = bradfordAdaptMatrix(D60, D65);
+  const M_awg4_rgb2xyz_d65 = primariesToRgbToXyz(AWG4, D65);
+  const M_xyz_to_awg4 = mat3Inverse(M_awg4_rgb2xyz_d65);
+  const T = mat3Multiply(M_xyz_to_awg4, mat3Multiply(adapt_d60_to_d65, M_ap0_rgb2xyz_d60));
+  ap0ToAwg4Matrix = T;
+  return T;
+}
+
+let logc4Consts = null;
+function ensureLogC4Consts() {
+  if (logc4Consts) return logc4Consts;
+  const b = (1023 - 95) / 1023;
+  const c = 95 / 1023;
+  const a = (Math.pow(2, 18) - 16) / 117.45;
+  const s = (7 * Math.log(2) * Math.pow(2, (7 - 14 * (c / b)))) / (a * b);
+  const t = (Math.pow(2, (14 * (-c / b) + 6)) - 64) / a;
+  logc4Consts = { a, b, c, s, t };
+  return logc4Consts;
+}
+
+// Single-pass: Rec.709 decode -> AP0 to AWG4 -> LogC4 encode (in-place)
+function apply709ToAWG4LogC4InPlace(u16) {
+  const lut = initBT709DecodeLUT();
+  const M = ensureAp0ToAwg4Matrix();
+  const inv65535 = 1 / 65535;
+  const { a, b, c, s, t } = ensureLogC4Consts();
+  for (let i = 0; i < u16.length; i += 3) {
+    // 709 decode to linear AP0
+    const r = lut[u16[i]] * inv65535;
+    const g = lut[u16[i + 1]] * inv65535;
+    const bl = lut[u16[i + 2]] * inv65535;
+    // AP0 -> AWG4
+    const v = mat3MultiplyVec3(M, [r, g, bl]);
+    // LogC4 encode per channel
+    u16[i] = encodeLogC4ToU16(v[0], a, b, c, s, t);
+    u16[i + 1] = encodeLogC4ToU16(v[1], a, b, c, s, t);
+    u16[i + 2] = encodeLogC4ToU16(v[2], a, b, c, s, t);
+  }
+}
+function encodeLogC4ToU16(E, a, b, c, s, t) {
+  const x = E;
+  let y;
+  if (x >= t) {
+    y = ((Math.log2(a * x + 64) - 6) / 14) * b + c;
+  } else {
+    y = (x - t) / s;
+  }
+  if (y < 0) y = 0; else if (y > 1) y = 1;
+  return Math.round(y * 65535);
+}
+
 async function ensureLib() {
   if (lib) return lib;
   if (!moduleRef) {
@@ -159,6 +291,9 @@ self.onmessage = async (e) => {
     if (pipeline === 'acescct') {
       // 709->linear->AP1->ACEScct single-pass
       apply709ToACEScctInPlace(pixelsU16);
+    } else if (pipeline === 'arri-logc4') {
+      // 709->linear->AWG4->LogC4 single-pass
+      apply709ToAWG4LogC4InPlace(pixelsU16);
     } else {
       // AP0 Linear: just decode Rec.709 to linear
       applyBT709DecodeInPlace(pixelsU16);

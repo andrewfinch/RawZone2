@@ -18,6 +18,7 @@
       <select id="pipeline">
         <option value="ap0-linear">AP0 Linear (Rec.709 → linear)</option>
         <option value="acescct">ACEScct (709→linear → AP1 → ACEScct)</option>
+        <option value="arri-logc4">ARRI LogC4 (709→linear → AWG4 → LogC4)</option>
       </select>
       <button id="process">Process</button>
     </div>
@@ -71,7 +72,9 @@
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        const suffix = pipeline === 'acescct' ? '_acescct16.tiff' : '_ap0_linear16.tiff';
+        const suffix = pipeline === 'acescct' ? '_acescct16.tiff'
+                        : pipeline === 'arri-logc4' ? '_arri_logc4_16.tiff'
+                        : '_ap0_linear16.tiff';
         a.download = (file.name.replace(/\.[^.]+$/, '') || 'output') + suffix;
         document.body.appendChild(a);
         a.click();
