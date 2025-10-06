@@ -76,6 +76,9 @@
         cursor: pointer;
         transition: transform .06s ease, background .2s ease;
         font-weight: 600;
+        font-family: inherit;
+        font-size: 14px;
+        line-height: 1.2;
       }
       .btn:hover { background: #2b2b2b; }
       .btn:active { transform: translateY(1px); }
@@ -135,6 +138,9 @@
         border-radius: var(--radius-3);
         padding: var(--space-2) var(--space-6) var(--space-2) var(--space-3);
         font-weight: 600;
+        font-family: inherit;
+        font-size: 14px;
+        line-height: 1.2;
       }
       .select::after {
         content: '▾';
@@ -181,7 +187,7 @@
   <body>
     <div class="app">
       <h2>RAWZONE</h2>
-      <p class="helper">Batch convert RAW photos to Log and ACES formats in your browser</p>
+      <p class="helper">Batch convert RAW photos to Log and ACES formats in Chrome</p>
       <div class="row">
         <div class="file-chooser">
           <label for="file" class="btn">Choose RAW</label>
@@ -211,6 +217,9 @@
         <div class="progress-wrap" aria-label="Batch progress"><div id="progressBar"></div></div>
       </div>
       <div id="log" aria-live="polite"></div>
+      <div id="downloadList" class="row" style="display:none; flex-direction: column; align-items: stretch; gap: var(--space-2);
+        ">
+      </div>
       <div class="row">
         <button id="process" class="btn primary">Process</button>
         <button id="cancel" class="btn" style="display:none;">Cancel</button>
@@ -277,6 +286,7 @@
       let outputSummaryLabel = 'Downloads';
       let successCount = 0;
       let failureCount = 0;
+      const IS_SAFARI = /Safari\//.test(navigator.userAgent) && !/Chrom(e|ium)\//.test(navigator.userAgent);
 
       // Progress tracking across batch
       const STAGE_PROGRESS = {
@@ -377,9 +387,10 @@
           log('Destination selected: ' + (dir.name || '(unnamed)'));
         } catch (err) {
           console.warn(err);
-          log('Destination selection cancelled or not writable.');
+          // On Safari this is expected; simply keep default behavior
           chosenDirHandle = null;
           chooseDestBtn.textContent = '📁 Downloads';
+          log('Using Downloads.');
         }
       });
 
@@ -421,6 +432,38 @@
           downloadQueue.push({ blob, filename, resolve });
           processDownloadQueue();
         });
+      }
+
+      const downloadListEl = document.getElementById('downloadList');
+      function offerManualDownload(blob, filename) {
+        downloadListEl.style.display = 'flex';
+        const row = document.createElement('div');
+        row.style.display = 'flex';
+        row.style.gap = 'var(--space-2)';
+        row.style.alignItems = 'center';
+        const name = document.createElement('span');
+        name.className = 'file-name';
+        name.textContent = filename;
+        const btn = document.createElement('button');
+        btn.className = 'btn';
+        btn.textContent = 'Save';
+        btn.addEventListener('click', () => {
+          try {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+            btn.disabled = true;
+            btn.textContent = 'Saved';
+          } catch (_) {}
+        });
+        row.appendChild(name);
+        row.appendChild(btn);
+        downloadListEl.appendChild(row);
       }
       async function getUniqueFileHandle(dirHandle, fileName) {
         // Ensure we do not overwrite an existing file
@@ -573,8 +616,13 @@
             if (chosenDirHandle) {
               throw err;
             } else {
-              await enqueueDownload(blob, outputName);
-              log(((totalPlanned > 1) ? '' : 'Done! ') + 'Saved to Downloads: ' + outputName);
+              if (IS_SAFARI) {
+                offerManualDownload(blob, outputName);
+                log('Ready to save: ' + outputName + ' (click Save)');
+              } else {
+                await enqueueDownload(blob, outputName);
+                log(((totalPlanned > 1) ? '' : 'Done! ') + 'Saved to Downloads: ' + outputName);
+              }
               successCount++;
             }
           } finally {
@@ -582,8 +630,13 @@
           }
         } else {
           setJobProgress(jobId, STAGE_PROGRESS['saving']);
-          await enqueueDownload(blob, outputName);
-          log(((totalPlanned > 1) ? '' : 'Done! ') + 'Saved to Downloads: ' + outputName);
+          if (IS_SAFARI) {
+            offerManualDownload(blob, outputName);
+            log('Ready to save: ' + outputName + ' (click Save)');
+          } else {
+            await enqueueDownload(blob, outputName);
+            log(((totalPlanned > 1) ? '' : 'Done! ') + 'Saved to Downloads: ' + outputName);
+          }
           successCount++;
           finishJob(jobId);
         }
@@ -645,6 +698,12 @@
             log('Done!');
           }
           cancelBtn.style.display = 'none';
+          if (IS_SAFARI && !outputDirHandle) {
+            // Keep the manual download list visible; user may still be saving items
+          } else {
+            downloadListEl.style.display = 'none';
+            downloadListEl.innerHTML = '';
+          }
         });
       });
 
