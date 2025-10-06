@@ -12,6 +12,8 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@abasb75/openjpeg": "^2.5.3",
+    "@cornerstonejs/codec-openjpeg": "^1.2.4",
     "libraw-wasm": "^1.1.2"
   }
 }

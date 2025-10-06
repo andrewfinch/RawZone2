@@ -5,24 +5,139 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>ARW → Linear XYZ 16-bit TIFF (LibRaw-Wasm)</title>
     <style>
-      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 24px; }
-      .row { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; }
-      button { padding: 8px 12px; }
-      #log { white-space: pre-wrap; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; background: #f7f7f7; padding: 12px; border-radius: 8px; }
+      :root {
+        color-scheme: dark;
+        --bg: #0b1017;
+        --surface: #0f1520;
+        --elev: #111a28;
+        --text: #e6edf3;
+        --muted: #9fb1c0;
+        --accent: #4ea1ff;
+        --border: #1f2a3a;
+        --shadow: 0 10px 30px rgba(0,0,0,0.35);
+      }
+
+      * { box-sizing: border-box; }
+
+      html, body { height: 100%; }
+
+      body {
+        margin: 0;
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+        color: var(--text);
+        background: radial-gradient(1200px 900px at 10% 0%, #0c1422, #080c12) fixed;
+      }
+
+      .app {
+        max-width: 960px;
+        margin: 40px auto;
+        padding: 24px;
+        background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)), var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        box-shadow: var(--shadow);
+      }
+
+      h2 { margin: 0 0 10px; font-weight: 600; letter-spacing: 0.2px; }
+      p.helper { margin: 0 0 18px; color: var(--muted); font-size: 14px; }
+
+      .row { display: flex; flex-wrap: wrap; gap: 12px; align-items: stretch; margin-bottom: 14px; }
+
+      /* Buttons */
+      .btn {
+        background: #1b2736;
+        color: var(--text);
+        border: 1px solid var(--border);
+        padding: 10px 14px;
+        border-radius: 10px;
+        cursor: pointer;
+        transition: transform .06s ease, background .2s ease;
+        font-weight: 600;
+      }
+      .btn:hover { background: #223142; }
+      .btn:active { transform: translateY(1px); }
+      .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+      .btn.primary {
+        background: linear-gradient(180deg, #2b6cff, #1b56d8);
+        border-color: #1046c9;
+      }
+      .btn.primary:hover { background: linear-gradient(180deg, #2f74ff, #1f5ee6); }
+
+      /* File chooser */
+      input[type="file"] { display: none; }
+      .file-chooser { display: inline-flex; align-items: center; gap: 10px; }
+      .file-name {
+        color: var(--muted);
+        font-size: 14px;
+        min-width: 180px;
+        max-width: 360px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      /* Select */
+      .select { position: relative; }
+      .select select {
+        appearance: none;
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        background: #121c2a;
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 10px 36px 10px 12px;
+        font-weight: 600;
+      }
+      .select::after {
+        content: '▾';
+        position: absolute;
+        right: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--muted);
+        pointer-events: none;
+      }
+
+      /* Log panel */
+      #log {
+        white-space: pre-wrap;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        background: #0f1824;
+        padding: 14px;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        min-height: 48px;
+        color: #d6e3f0;
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
+      }
+
+      .footer { color: var(--muted); font-size: 12px; margin-top: 10px; }
     </style>
   </head>
   <body>
-    <h2>ARW → Linear XYZ 16‑bit TIFF</h2>
-    <div class="row">
-      <input id="file" type="file" accept=".arw,.ARW">
-      <select id="pipeline">
-        <option value="ap0-linear">AP0 Linear (Rec.709 → linear)</option>
-        <option value="acescct">ACEScct (709→linear → AP1 → ACEScct)</option>
-        <option value="arri-logc4">ARRI LogC4 (709→linear → AWG4 → LogC4)</option>
-      </select>
-      <button id="process">Process</button>
+    <div class="app">
+      <h2>ARW → Linear XYZ 16‑bit TIFF</h2>
+      <p class="helper">Convert Sony .ARW to scene‑referred XYZ 16‑bit TIFF. Choose an output transform if desired.</p>
+      <div class="row">
+        <div class="file-chooser">
+          <label for="file" class="btn">Choose .ARW</label>
+          <span id="fileName" class="file-name" aria-live="polite">No file selected</span>
+          <input id="file" type="file" accept=".arw,.ARW">
+        </div>
+        <div class="select">
+          <select id="pipeline">
+            <option value="ap0-linear">AP0 Linear (Rec.709 → linear)</option>
+            <option value="acescct">ACEScct (709→linear → AP1 → ACEScct)</option>
+            <option value="arri-logc4">ARRI LogC4 (709→linear → AWG4 → LogC4)</option>
+          </select>
+        </div>
+        <button id="process" class="btn primary">Process</button>
+      </div>
+      <div id="log" aria-live="polite"></div>
+      <div class="footer">Uses LibRaw (WASM). All processing happens locally in your browser.</div>
     </div>
-    <div id="log" aria-live="polite"></div>
 
     <script type="module">
       // Exact requested settings: scene-referred linear XYZ, 16-bit, camera WB, no auto-bright
@@ -41,12 +156,18 @@
       const pipelineEl = document.getElementById('pipeline');
       const processBtn = document.getElementById('process');
       const logEl = document.getElementById('log');
+      const fileNameEl = document.getElementById('fileName');
 
       function log(message) {
         logEl.textContent = message;
       }
 
       const worker = new Worker('./raw-worker.js', { type: 'module' });
+
+      fileEl.addEventListener('change', function() {
+        const f = fileEl.files && fileEl.files[0];
+        fileNameEl.textContent = f ? f.name : 'No file selected';
+      });
 
       async function processFile(file) {
         log('Reading file…');
