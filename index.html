@@ -4,6 +4,9 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>RAWZONE</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
     <style>
       :root {
         color-scheme: dark;
@@ -15,6 +18,19 @@
         --accent: #8a8f98;
         --border: #252527;
         --shadow: 0 10px 30px rgba(0,0,0,0.35);
+        /* Spacing scale */
+        --space-1: 4px;
+        --space-2: 8px;
+        --space-3: 12px;
+        --space-4: 16px;
+        --space-5: 24px;
+        --space-6: 32px;
+        /* Radius scale */
+        --radius-1: 6px;
+        --radius-2: 8px;
+        --radius-3: 10px;
+        --radius-4: 12px;
+        --radius-5: 16px;
       }
 
       * { box-sizing: border-box; }
@@ -30,26 +46,33 @@
 
       .app {
         max-width: 960px;
-        margin: 40px auto;
-        padding: 24px;
+        margin: var(--space-6) auto;
+        padding: var(--space-5);
         background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)), var(--surface);
         border: 1px solid var(--border);
-        border-radius: 16px;
+        border-radius: var(--radius-5);
         box-shadow: var(--shadow);
       }
 
-      h2 { margin: 0 0 10px; font-weight: 600; letter-spacing: 0.2px; }
-      p.helper { margin: 0 0 18px; color: var(--muted); font-size: 14px; }
+      h2 {
+        margin: 0 0 var(--space-3);
+        font-family: 'Press Start 2P', ui-monospace, Menlo, Monaco, Consolas, 'Courier New', monospace;
+        font-weight: 400;
+        letter-spacing: 0;
+        color: #aaff00; /* lime green */
+        font-size: 28px;
+      }
+      p.helper { margin: 0 0 var(--space-4); color: var(--muted); font-size: 14px; }
 
-      .row { display: flex; flex-wrap: wrap; gap: 12px; align-items: stretch; margin-bottom: 14px; }
+      .row { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: center; margin-bottom: var(--space-3); }
 
       /* Buttons */
       .btn {
         background: #232323;
         color: var(--text);
         border: 1px solid var(--border);
-        padding: 10px 14px;
-        border-radius: 10px;
+        padding: var(--space-2) var(--space-3);
+        border-radius: var(--radius-3);
         cursor: pointer;
         transition: transform .06s ease, background .2s ease;
         font-weight: 600;
@@ -59,19 +82,42 @@
       .btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
       .btn.primary {
-        background: linear-gradient(180deg, #3a3a3a, #2e2e2e);
-        border-color: #2a2a2a;
+        background: linear-gradient(180deg, #2e7d32, #1b5e20);
+        border-color: #165a16;
       }
-      .btn.primary:hover { background: linear-gradient(180deg, #424242, #343434); }
+      .btn.primary:hover { background: linear-gradient(180deg, #338a37, #206a25); }
+
+      /* Icon button */
+      .icon-btn {
+        background: transparent;
+        color: var(--muted);
+        border: none;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 28px;
+        height: 28px;
+        padding: 0;
+        cursor: pointer;
+        font-weight: 700;
+        font-size: 12px;
+        line-height: 1;
+        border-radius: var(--radius-1);
+      }
+      .icon-btn:hover { color: var(--text); background: rgba(255,255,255,0.06); }
+
+      /* Layout groups for the top control row */
+      .center-controls { display: flex; align-items: center; justify-content: center; gap: var(--space-2); flex: 1 1 auto; }
+      .right-controls { display: flex; align-items: center; gap: var(--space-2); margin-left: auto; }
 
       /* File chooser */
       input[type="file"] { display: none; }
-      .file-chooser { display: inline-flex; align-items: center; gap: 10px; }
+      .file-chooser { display: inline-flex; align-items: center; gap: var(--space-3); }
       .file-name {
         color: var(--muted);
         font-size: 14px;
-        min-width: 180px;
-        max-width: 360px;
+        min-width: 120px;
+        max-width: 280px;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -86,14 +132,14 @@
         background: #1a1a1a;
         color: var(--text);
         border: 1px solid var(--border);
-        border-radius: 10px;
-        padding: 10px 36px 10px 12px;
+        border-radius: var(--radius-3);
+        padding: var(--space-2) var(--space-6) var(--space-2) var(--space-3);
         font-weight: 600;
       }
       .select::after {
         content: '▾';
         position: absolute;
-        right: 12px;
+        right: var(--space-3);
         top: 50%;
         transform: translateY(-50%);
         color: var(--muted);
@@ -105,42 +151,81 @@
         white-space: pre-wrap;
         font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
         background: #141414;
-        padding: 14px;
-        border-radius: 12px;
+        padding: var(--space-2) var(--space-3);
+        border-radius: var(--radius-4);
         border: 1px solid var(--border);
-        min-height: 48px;
+        min-height: 36px;
+        margin-bottom: var(--space-3);
+        font-size: 12px;
         color: var(--text);
         box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
+        display: flex;
+        align-items: center;
       }
+      /* Add clear spacing after the status log before the actions row */
+      #log + .row { margin-top: var(--space-3); }
 
       .footer { color: var(--muted); font-size: 12px; margin-top: 10px; }
+      /* Progress bar */
+      .progress-wrap { width: 100%; height: 10px; background: #141414; border: 1px solid var(--border); border-radius: var(--radius-2); overflow: hidden; box-shadow: inset 0 1px 0 rgba(255,255,255,0.03); }
+      #progressBar { height: 100%; width: 0%; background: linear-gradient(90deg, #2f7dfa, #46c2ff); transition: width .2s ease; }
+      #progressWrap { margin-top: var(--space-3); }
+      /* Modal */
+      .modal { position: fixed; left: 0; top: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; z-index: 9999; }
+      .modal .overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.5); }
+      .modal .card { position: relative; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-4); padding: var(--space-4); max-width: 520px; margin: var(--space-4); box-shadow: var(--shadow); color: var(--text); }
+      .modal h3 { margin: 0 0 var(--space-2); font-weight: 600; }
+      .modal p { margin: 0 0 var(--space-3); color: var(--muted); }
     </style>
   </head>
   <body>
     <div class="app">
       <h2>RAWZONE</h2>
-      <p class="helper">Convert RAW photos to ACES and Log formats in your browser</p>
+      <p class="helper">Batch convert RAW photos to Log and ACES formats in your browser</p>
       <div class="row">
         <div class="file-chooser">
           <label for="file" class="btn">Choose RAW</label>
           <span id="fileName" class="file-name" aria-live="polite">No file selected</span>
           <input id="file" type="file" multiple accept=".3fr,.ari,.arw,.bay,.cap,.crw,.cr2,.cr3,.dcs,.dcr,.dng,.drf,.eip,.erf,.fff,.gpr,.iiq,.k25,.kdc,.mdc,.mef,.mos,.mrw,.nef,.nrw,.obm,.orf,.pef,.ptx,.pxn,.r3d,.raf,.raw,.rw2,.rwl,.rwz,.sr2,.srf,.srw,.x3f">
         </div>
-        <div class="select">
-          <select id="pipeline">
-            <option value="ap0-linear">ACES2065-1 (Linear APO)</option>
-            <option value="acescct">ACEScct (ACEScct AP1)</option>
-            <option value="arri-logc4">ARRI LogC4 AWG4</option>
-          </select>
+        <div class="center-controls">
+          <div class="select">
+            <select id="pipeline">
+              <option value="ap0-linear">ACES2065-1 (Linear APO)</option>
+              <option value="acescct">ACEScct (ACEScct AP1)</option>
+              <option value="arri-logc4" selected>ARRI LogC4 AWG4</option>
+            </select>
+          </div>
+          <div class="select">
+            <select id="format" title="Output format">
+              <option value="tiff">TIFF (16-bit)</option>
+            </select>
+          </div>
         </div>
-        <div class="select">
-          <select id="format" title="Output format">
-            <option value="tiff">TIFF (16-bit)</option>
-          </select>
+        <div class="right-controls">
+          <button id="destInfo" class="icon-btn" title="Info">ⓘ</button>
+          <button id="chooseDest" class="btn">📁 Downloads</button>
         </div>
-        <button id="process" class="btn primary">Process</button>
+      </div>
+      <div class="row" id="progressWrap" style="display: none;">
+        <div class="progress-wrap" aria-label="Batch progress"><div id="progressBar"></div></div>
       </div>
       <div id="log" aria-live="polite"></div>
+      <div class="row">
+        <button id="process" class="btn primary">Process</button>
+        <button id="cancel" class="btn" style="display:none;">Cancel</button>
+      </div>
+    </div>
+
+    <div id="infoModal" class="modal" style="display:none;">
+      <div class="overlay"></div>
+      <div class="card">
+        <h3>Destination selection</h3>
+        <p>Some protected folders cannot be selected by the browser. Create a new folder or select an empty one. <br> <br>If you don't select a destination, files will be saved to your Downloads using the browser's download manager.</p>
+        <div style="display:flex; gap: var(--space-2); justify-content:flex-end; margin-top: var(--space-3);">
+          <button id="closeInfo" class="btn">Close</button>
+        </div>
+      </div>
     </div>
 
     <script type="module">
@@ -160,14 +245,298 @@
       const pipelineEl = document.getElementById('pipeline');
       const formatEl = document.getElementById('format');
       const processBtn = document.getElementById('process');
+      const cancelBtn = document.getElementById('cancel');
+      const chooseDestBtn = document.getElementById('chooseDest');
+      const destInfoBtn = document.getElementById('destInfo');
       const logEl = document.getElementById('log');
       const fileNameEl = document.getElementById('fileName');
+      const progressBar = document.getElementById('progressBar');
+      const progressWrap = document.getElementById('progressWrap');
+      const infoModal = document.getElementById('infoModal');
+      const closeInfoBtn = document.getElementById('closeInfo');
 
       function log(message) {
         logEl.textContent = message;
       }
 
-      const worker = new Worker('./raw-worker.js', { type: 'module' });
+      const CPU = Math.max(1, (navigator.hardwareConcurrency || 2) - 1);
+      const POOL_SIZE = Math.min(3, CPU);
+      const workers = Array.from({ length: POOL_SIZE }, () => new Worker('./raw-worker.js', { type: 'module' }));
+      const idle = new Set(workers);
+      const queue = [];
+      let nextJobId = 1;
+      let cancelled = false;
+      const inFlight = new Map(); // worker -> job
+      let ACTIVE_LIMIT = POOL_SIZE;
+      let activeCount = 0;
+      const jobTimeoutMs = 10 * 60 * 1000; // 10 minutes safety timeout
+      const maxJobsPerWorker = 10; // periodically recycle workers to avoid fragmentation
+      const processedByWorker = new Map();
+      let chosenDirHandle = null; // Optional user-selected output directory
+      let outputDirHandle = null; // Actual directory used for this run
+      let outputSummaryLabel = 'Downloads';
+      let successCount = 0;
+      let failureCount = 0;
+
+      // Progress tracking across batch
+      const STAGE_PROGRESS = {
+        'opening': 0.05,
+        'decoding': 0.25,
+        'dimensions': 0.35,
+        'pixels-prepared': 0.55,
+        'transformed': 0.80,
+        'encoded': 0.90,
+        'saving': 0.97
+      };
+      let totalPlanned = 0;
+      let completedCount = 0;
+      const jobProgress = new Map(); // jobId -> fraction 0..1
+
+      function setBar(frac) {
+        const f = Math.max(0, Math.min(1, frac));
+        progressBar.style.width = (f * 100).toFixed(2) + '%';
+      }
+      function updateBar() {
+        if (!totalPlanned) { setBar(0); return; }
+        let sum = 0;
+        jobProgress.forEach(v => { sum += v; });
+        const overall = (completedCount + sum) / totalPlanned;
+        setBar(overall);
+      }
+      function resetProgress(total) {
+        totalPlanned = total || 0;
+        completedCount = 0;
+        jobProgress.clear();
+        setBar(0);
+        progressWrap.style.display = totalPlanned > 0 ? 'flex' : 'none';
+        successCount = 0;
+        failureCount = 0;
+      }
+      function setJobProgress(jobId, frac) {
+        if (!totalPlanned) return;
+        jobProgress.set(jobId, Math.max(0, Math.min(1, frac)));
+        updateBar();
+      }
+      function finishJob(jobId) {
+        if (!totalPlanned) return;
+        jobProgress.delete(jobId);
+        completedCount++;
+        updateBar();
+      }
+
+      // File System Access helpers (Chromium; Safari/Firefox may not support)
+      async function getUniqueSubdirHandle(parentHandle, baseName) {
+        let name = baseName;
+        let index = 1;
+        while (true) {
+          try {
+            // If exists, try next suffix
+            await parentHandle.getDirectoryHandle(name, { create: false });
+            index++;
+            name = baseName + ' (' + index + ')';
+          } catch (err) {
+            if (err && err.name === 'NotFoundError') {
+              return await parentHandle.getDirectoryHandle(name, { create: true });
+            }
+            throw err;
+          }
+        }
+      }
+      async function verifyWritableDirectory(dirHandle) {
+        // Request permission
+        try {
+          const p = await dirHandle.requestPermission({ mode: 'readwrite' });
+          if (p !== 'granted') throw new Error('Permission denied');
+        } catch (err) {
+          throw new Error('Permission denied for selected directory');
+        }
+        // Test write
+        try {
+          const testName = '.rawzone_rw_test.tmp';
+          const fh = await dirHandle.getFileHandle(testName, { create: true });
+          const w = await fh.createWritable();
+          await w.write(new Blob(['ok']));
+          await w.close();
+          try { await dirHandle.removeEntry(testName); } catch (_) {}
+        } catch (err) {
+          throw new Error('Selected directory is not writable');
+        }
+      }
+
+      chooseDestBtn.addEventListener('click', async function() {
+        if (typeof window.showDirectoryPicker !== 'function') {
+          log('Directory selection not supported in this browser.');
+          return;
+        }
+        try {
+          log('Select the output directory');
+          const dir = await window.showDirectoryPicker({ id: 'rawzone-output', mode: 'readwrite', startIn: 'documents' });
+          await verifyWritableDirectory(dir);
+          chosenDirHandle = dir;
+          chooseDestBtn.textContent = '📁 ' + (dir.name || 'Selected');
+          log('Destination selected: ' + (dir.name || '(unnamed)'));
+        } catch (err) {
+          console.warn(err);
+          log('Destination selection cancelled or not writable.');
+          chosenDirHandle = null;
+          chooseDestBtn.textContent = '📁 Downloads';
+        }
+      });
+
+      destInfoBtn.addEventListener('click', function() {
+        infoModal.style.display = 'flex';
+      });
+      function closeInfo() { infoModal.style.display = 'none'; }
+      closeInfoBtn.addEventListener('click', closeInfo);
+      infoModal.querySelector('.overlay').addEventListener('click', closeInfo);
+
+      // Download queue to avoid multiple simultaneous downloads getting blocked by the browser
+      const downloadQueue = [];
+      let downloading = false;
+      function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+      async function processDownloadQueue() {
+        if (downloading) return;
+        downloading = true;
+        while (downloadQueue.length) {
+          const { blob, filename, resolve } = downloadQueue.shift();
+          try {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+          } finally {
+            resolve();
+          }
+          // tiny delay to avoid triggering download throttling
+          await sleep(200);
+        }
+        downloading = false;
+      }
+      function enqueueDownload(blob, filename) {
+        return new Promise(resolve => {
+          downloadQueue.push({ blob, filename, resolve });
+          processDownloadQueue();
+        });
+      }
+      async function getUniqueFileHandle(dirHandle, fileName) {
+        // Ensure we do not overwrite an existing file
+        let name = fileName;
+        let index = 1;
+        const dot = name.lastIndexOf('.');
+        const base = dot >= 0 ? name.slice(0, dot) : name;
+        const ext = dot >= 0 ? name.slice(dot) : '';
+        while (true) {
+          try {
+            await dirHandle.getFileHandle(name, { create: false });
+            index++;
+            name = base + ' (' + index + ')' + ext;
+          } catch (err) {
+            if (err && err.name === 'NotFoundError') {
+              return await dirHandle.getFileHandle(name, { create: true });
+            }
+            throw err;
+          }
+        }
+      }
+
+      function enqueueJob(file, pipeline) {
+        return new Promise((resolve, reject) => {
+          const jobId = nextJobId++;
+          queue.push({ jobId, file, pipeline, resolve, reject });
+          schedule();
+        });
+      }
+
+      function schedule() {
+        if (cancelled) return;
+        while (idle.size > 0 && queue.length > 0 && activeCount < ACTIVE_LIMIT) {
+          const worker = idle.values().next().value;
+          idle.delete(worker);
+          const job = queue.shift();
+          runJob(worker, job);
+        }
+      }
+
+      function runJob(worker, job) {
+        const { jobId, file, pipeline, resolve, reject } = job;
+        let onMsg;
+        activeCount++;
+        let timerId = null;
+        onMsg = async (e) => {
+          const data = e.data || {};
+          if (data.jobId !== jobId) return; // ignore other jobs
+          if (data.type === 'progress') {
+            log('[' + file.name + '] ' + data.stage + '…');
+            const p = STAGE_PROGRESS[data.stage];
+            if (typeof p === 'number') setJobProgress(jobId, p);
+            return;
+          }
+          worker.removeEventListener('message', onMsg);
+          inFlight.delete(worker);
+          if (timerId) { clearTimeout(timerId); timerId = null; }
+          // Recycle workers periodically
+          const processed = (processedByWorker.get(worker) || 0) + 1;
+          processedByWorker.set(worker, processed);
+          if (processed >= maxJobsPerWorker) {
+            try { worker.terminate(); } catch (_) {}
+            processedByWorker.delete(worker);
+            const nw = new Worker('./raw-worker.js', { type: 'module' });
+            idle.add(nw);
+          } else {
+            idle.add(worker);
+          }
+          activeCount--;
+          schedule();
+          if (data.type === 'result') {
+            resolve(data);
+          } else if (data.type === 'error') {
+            const errMsg = data.error || 'Unknown error';
+            // Heuristic: reduce concurrency on memory pressure
+            if (/out\s*of\s*memory|cannot\s*enlarge\s*memory|wasm/i.test(errMsg)) {
+              if (ACTIVE_LIMIT > 1) {
+                ACTIVE_LIMIT = 1;
+                log('Memory pressure detected. Reducing concurrency to 1.');
+              }
+            }
+            // Mark this job as failed and completed for progress accounting
+            try { setJobProgress(job.jobId, 1); } catch (_) {}
+            try { finishJob(job.jobId); } catch (_) {}
+            try { failureCount++; } catch (_) {}
+            reject(new Error(errMsg));
+          }
+        };
+        worker.addEventListener('message', onMsg);
+        inFlight.set(worker, job);
+
+        (async () => {
+          try {
+            const buffer = await file.arrayBuffer();
+            worker.postMessage({ cmd: 'process', jobId, bytes: buffer, settings, pipeline, format: 'tiff' }, [buffer]);
+            // Timeout guard
+            timerId = setTimeout(() => {
+              try { worker.removeEventListener('message', onMsg); } catch (_) {}
+              inFlight.delete(worker);
+              try { worker.terminate(); } catch (_) {}
+              const nw = new Worker('./raw-worker.js', { type: 'module' });
+              idle.add(nw);
+              if (timerId) { clearTimeout(timerId); timerId = null; }
+              activeCount--;
+              schedule();
+              reject(new Error('Timeout'));
+            }, jobTimeoutMs);
+          } catch (err) {
+            worker.removeEventListener('message', onMsg);
+            inFlight.delete(worker);
+            idle.add(worker);
+            schedule();
+            reject(err);
+          }
+        })();
+      }
 
       fileEl.addEventListener('change', function() {
         const files = fileEl.files;
@@ -181,63 +550,127 @@
       });
 
       async function processFile(file) {
-        log('Reading file…');
-        const buffer = await file.arrayBuffer();
         const pipeline = pipelineEl.value;
-        const format = formatEl.value;
-
-        log('Decoding RAW in worker…');
-        const { out } = await new Promise((resolve, reject) => {
-          function onMessage(e) {
-            worker.removeEventListener('message', onMessage);
-            const data = e.data || {};
-            if (data.error) {
-              reject(new Error(data.error));
-              return;
-            }
-            resolve(data);
-          }
-          worker.addEventListener('message', onMessage);
-          worker.postMessage({ cmd: 'process', bytes: buffer, settings, pipeline, format }, [buffer]);
-        });
-
+        const { jobId, out } = await enqueueJob(file, pipeline);
         const blob = new Blob([out], { type: 'image/tiff' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
         const suffix = (pipeline === 'acescct' ? '_acescct16.tiff'
                            : pipeline === 'arri-logc4' ? '_arri_logc4_16.tiff'
                            : '_ap0_linear16.tiff');
-        a.download = (file.name.replace(/\.[^.]+$/, '') || 'output') + suffix;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(url);
-        log('Done. Downloaded TIFF.');
+        const outputName = (file.name.replace(/\.[^.]+$/, '') || 'output') + suffix;
+
+        if (outputDirHandle) {
+          try {
+            setJobProgress(jobId, STAGE_PROGRESS['saving']);
+            const fileHandle = await getUniqueFileHandle(outputDirHandle, outputName);
+            const writable = await fileHandle.createWritable();
+            await writable.write(blob);
+            await writable.close();
+            log(((totalPlanned > 1) ? '' : 'Done! ') + 'Saved to ' + (outputSummaryLabel || 'folder') + ': ' + outputName);
+            successCount++;
+          } catch (err) {
+            console.error(err);
+            // If user explicitly selected a destination, abort on write failure
+            if (chosenDirHandle) {
+              throw err;
+            } else {
+              await enqueueDownload(blob, outputName);
+              log(((totalPlanned > 1) ? '' : 'Done! ') + 'Saved to Downloads: ' + outputName);
+              successCount++;
+            }
+          } finally {
+            finishJob(jobId);
+          }
+        } else {
+          setJobProgress(jobId, STAGE_PROGRESS['saving']);
+          await enqueueDownload(blob, outputName);
+          log(((totalPlanned > 1) ? '' : 'Done! ') + 'Saved to Downloads: ' + outputName);
+          successCount++;
+          finishJob(jobId);
+        }
       }
 
-      processBtn.addEventListener('click', function() {
+      processBtn.addEventListener('click', async function() {
         const files = fileEl.files;
         if (!files || files.length === 0) {
           log('Please choose RAW file(s).');
           return;
         }
+        // Reset progress for this batch
+        resetProgress(files.length);
+        // Decide output directory for this run
+        outputDirHandle = null;
+        if (chosenDirHandle) {
+          try {
+            await verifyWritableDirectory(chosenDirHandle);
+            outputDirHandle = chosenDirHandle;
+            outputSummaryLabel = chosenDirHandle.name || 'Selected Folder';
+          } catch (err) {
+            console.error(err);
+            log('Selected directory is not writable. Please choose another destination.');
+            progressWrap.style.display = 'none';
+            return;
+          }
+        } else {
+          outputSummaryLabel = 'Downloads';
+          // Ensure the folder icon remains visible when resetting to Downloads
+          chooseDestBtn.textContent = '📁 Downloads';
+        }
+        cancelled = false;
         processBtn.disabled = true;
+        cancelBtn.style.display = 'inline-block';
         (async () => {
           const total = files.length;
+          const tasks = [];
           for (let i = 0; i < total; i++) {
-            const f = files[i];
-            log('Processing ' + (i + 1) + '/' + total + ': ' + f.name);
-            try {
-              await processFile(f);
-            } catch (err) {
+            tasks.push(processFile(files[i]).catch(err => {
               console.error(err);
-              log('Error on ' + f.name + ': ' + (err && err.message ? err.message : String(err)));
-            }
+              log('Error on ' + files[i].name + ': ' + (err && err.message ? err.message : String(err)));
+              // Count failed file toward overall progress
+              // We do not have jobId here on failure before enqueue resolves; ignore as minor
+            }));
           }
+          await Promise.all(tasks);
         })().finally(function() {
           processBtn.disabled = false;
+          progressWrap.style.display = 'none';
+          const total = (files && files.length) || 0;
+          const dest = outputDirHandle ? outputSummaryLabel : 'Downloads';
+          if (total > 0) {
+            if (failureCount > 0) {
+              log('Done with warnings. ' + successCount + '/' + total + ' succeeded. Saved to ' + dest + '.');
+            } else {
+              log('Done! ' + successCount + '/' + total + ' saved to ' + dest + '.');
+            }
+          } else {
+            log('Done!');
+          }
+          cancelBtn.style.display = 'none';
         });
+      });
+
+      cancelBtn.addEventListener('click', function() {
+        cancelled = true;
+        resetProgress(0);
+        // Clear queued jobs (reject them as cancelled)
+        while (queue.length) {
+          const job = queue.shift();
+          try { job.reject(new Error('Cancelled')); } catch (_) {}
+        }
+        // Terminate in-flight workers and reject their jobs
+        const busyWorkers = Array.from(inFlight.keys());
+        for (const w of busyWorkers) {
+          const job = inFlight.get(w);
+          try { job && job.reject && job.reject(new Error('Cancelled')); } catch (_) {}
+          try { w.terminate(); } catch (_) {}
+          inFlight.delete(w);
+          activeCount = Math.max(0, activeCount - 1);
+          // Replace with a new worker ready to accept work
+          const nw = new Worker('./raw-worker.js', { type: 'module' });
+          idle.add(nw);
+        }
+        processBtn.disabled = false;
+        cancelBtn.style.display = 'none';
+        log('Cancelled.');
       });
     </script>
   </body>

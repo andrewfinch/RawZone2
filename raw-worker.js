@@ -212,6 +212,13 @@ self.onmessage = async (e) => {
     if (data.cmd !== 'process') return;
     const bytes = data.bytes; // ArrayBuffer
     const settings = data.settings || {};
+    const jobId = data.jobId;
+
+    function progress(stage) {
+      try {
+        self.postMessage({ jobId, type: 'progress', stage });
+      } catch (_) {}
+    }
 
     const mod = await ensureModule();
     const LibRawClass = mod.LibRaw;
@@ -223,9 +230,11 @@ self.onmessage = async (e) => {
       gamm: [1.0, 1.0],
       gamma: [1.0, 1.0]
     });
+    progress('opening');
     await instance.open(new Uint8Array(bytes), linearSettings);
 
     // imageData is an interleaved 3-channel buffer in requested color space
+    progress('decoding');
     const img = await instance.imageData();
 
     // Dimensions: prefer imageData's own fields, then metadata as fallback
@@ -243,6 +252,7 @@ self.onmessage = async (e) => {
       height = (meta && (meta.height || (meta.sizes && meta.sizes.height))) || height;
     }
     if (!width || !height) throw new Error('Missing dimensions');
+    progress('dimensions');
 
     // Normalize pixel data view
     let pixelsView = null;
@@ -285,6 +295,7 @@ self.onmessage = async (e) => {
         throw new Error('Unexpected imageData byte length');
       }
     }
+    progress('pixels-prepared');
 
     // Select pipeline
     const pipeline = data.pipeline || 'ap0-linear';
@@ -298,21 +309,28 @@ self.onmessage = async (e) => {
       // AP0 Linear: just decode Rec.709 to linear
       applyBT709DecodeInPlace(pixelsU16);
     }
+    progress('transformed');
 
     // Encode baseline uncompressed TIFF, 3 samples, 16-bit unsigned, chunky
     const spp = 3;
     const bits = [16, 16, 16];
     const sampleFormat = [1, 1, 1];
     const tiffBytes = encodeTiff16le(width, height, spp, bits, sampleFormat, pixelsU16);
+    progress('encoded');
 
     // Best-effort cleanup of native resources
     try { instance.close && instance.close(); } catch (_) {}
     try { instance.recycle && instance.recycle(); } catch (_) {}
     try { instance.delete && instance.delete(); } catch (_) {}
 
-    self.postMessage({ out: tiffBytes }, [tiffBytes.buffer]);
+    self.postMessage({ jobId, type: 'result', out: tiffBytes }, [tiffBytes.buffer]);
   } catch (err) {
-    self.postMessage({ error: err && err.message ? err.message : String(err) });
+    try {
+      const jobId = (e && e.data && e.data.jobId) || undefined;
+      self.postMessage({ jobId, type: 'error', error: err && err.message ? err.message : String(err) });
+    } catch (_) {
+      self.postMessage({ type: 'error', error: err && err.message ? err.message : String(err) });
+    }
   }
 };
 
