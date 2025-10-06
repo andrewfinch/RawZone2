@@ -3,17 +3,17 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>ARW → Linear XYZ 16-bit TIFF (LibRaw-Wasm)</title>
+    <title>RAWZONE</title>
     <style>
       :root {
         color-scheme: dark;
-        --bg: #0b1017;
-        --surface: #0f1520;
-        --elev: #111a28;
-        --text: #e6edf3;
-        --muted: #9fb1c0;
-        --accent: #4ea1ff;
-        --border: #1f2a3a;
+        --bg: #0e0e10;
+        --surface: #141416;
+        --elev: #1a1b1e;
+        --text: #e8e9ea;
+        --muted: #a1a1aa;
+        --accent: #8a8f98;
+        --border: #252527;
         --shadow: 0 10px 30px rgba(0,0,0,0.35);
       }
 
@@ -25,7 +25,7 @@
         margin: 0;
         font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
         color: var(--text);
-        background: radial-gradient(1200px 900px at 10% 0%, #0c1422, #080c12) fixed;
+        background: radial-gradient(1200px 900px at 10% 0%, #111113, #0a0a0b) fixed;
       }
 
       .app {
@@ -45,7 +45,7 @@
 
       /* Buttons */
       .btn {
-        background: #1b2736;
+        background: #232323;
         color: var(--text);
         border: 1px solid var(--border);
         padding: 10px 14px;
@@ -54,15 +54,15 @@
         transition: transform .06s ease, background .2s ease;
         font-weight: 600;
       }
-      .btn:hover { background: #223142; }
+      .btn:hover { background: #2b2b2b; }
       .btn:active { transform: translateY(1px); }
       .btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
       .btn.primary {
-        background: linear-gradient(180deg, #2b6cff, #1b56d8);
-        border-color: #1046c9;
+        background: linear-gradient(180deg, #3a3a3a, #2e2e2e);
+        border-color: #2a2a2a;
       }
-      .btn.primary:hover { background: linear-gradient(180deg, #2f74ff, #1f5ee6); }
+      .btn.primary:hover { background: linear-gradient(180deg, #424242, #343434); }
 
       /* File chooser */
       input[type="file"] { display: none; }
@@ -83,7 +83,7 @@
         appearance: none;
         -webkit-appearance: none;
         -moz-appearance: none;
-        background: #121c2a;
+        background: #1a1a1a;
         color: var(--text);
         border: 1px solid var(--border);
         border-radius: 10px;
@@ -104,12 +104,12 @@
       #log {
         white-space: pre-wrap;
         font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-        background: #0f1824;
+        background: #141414;
         padding: 14px;
         border-radius: 12px;
         border: 1px solid var(--border);
         min-height: 48px;
-        color: #d6e3f0;
+        color: var(--text);
         box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
       }
 
@@ -118,25 +118,30 @@
   </head>
   <body>
     <div class="app">
-      <h2>ARW → Linear XYZ 16‑bit TIFF</h2>
-      <p class="helper">Convert Sony .ARW to scene‑referred XYZ 16‑bit TIFF. Choose an output transform if desired.</p>
+      <h2>RAWZONE</h2>
+      <p class="helper">Convert RAW photos to ACES and Log formats in your browser</p>
       <div class="row">
         <div class="file-chooser">
-          <label for="file" class="btn">Choose .ARW</label>
+          <label for="file" class="btn">Choose RAW</label>
           <span id="fileName" class="file-name" aria-live="polite">No file selected</span>
-          <input id="file" type="file" accept=".arw,.ARW">
+          <input id="file" type="file" accept=".3fr,.ari,.arw,.bay,.cap,.crw,.cr2,.cr3,.dcs,.dcr,.dng,.drf,.eip,.erf,.fff,.gpr,.iiq,.k25,.kdc,.mdc,.mef,.mos,.mrw,.nef,.nrw,.obm,.orf,.pef,.ptx,.pxn,.r3d,.raf,.raw,.rw2,.rwl,.rwz,.sr2,.srf,.srw,.x3f">
         </div>
         <div class="select">
           <select id="pipeline">
-            <option value="ap0-linear">AP0 Linear (Rec.709 → linear)</option>
-            <option value="acescct">ACEScct (709→linear → AP1 → ACEScct)</option>
-            <option value="arri-logc4">ARRI LogC4 (709→linear → AWG4 → LogC4)</option>
+            <option value="ap0-linear">ACES2065-1 (Linear APO)</option>
+            <option value="acescct">ACEScct (ACEScct AP1)</option>
+            <option value="arri-logc4">ARRI LogC4 AWG4</option>
+          </select>
+        </div>
+        <div class="select">
+          <select id="format" title="Output format">
+            <option value="tiff">TIFF (16-bit)</option>
+            <option value="j2c">JPEG 2000 Codestream (.j2c)</option>
           </select>
         </div>
         <button id="process" class="btn primary">Process</button>
       </div>
       <div id="log" aria-live="polite"></div>
-      <div class="footer">Uses LibRaw (WASM). All processing happens locally in your browser.</div>
     </div>
 
     <script type="module">
@@ -154,6 +159,7 @@
 
       const fileEl = document.getElementById('file');
       const pipelineEl = document.getElementById('pipeline');
+      const formatEl = document.getElementById('format');
       const processBtn = document.getElementById('process');
       const logEl = document.getElementById('log');
       const fileNameEl = document.getElementById('fileName');
@@ -173,6 +179,7 @@
         log('Reading file…');
         const buffer = await file.arrayBuffer();
         const pipeline = pipelineEl.value;
+        const format = formatEl.value;
 
         log('Decoding RAW in worker…');
         const { out } = await new Promise((resolve, reject) => {
@@ -186,28 +193,32 @@
             resolve(data);
           }
           worker.addEventListener('message', onMessage);
-          worker.postMessage({ cmd: 'process', bytes: buffer, settings, pipeline }, [buffer]);
+          worker.postMessage({ cmd: 'process', bytes: buffer, settings, pipeline, format }, [buffer]);
         });
 
-        const blob = new Blob([out], { type: 'image/tiff' });
+        const blob = new Blob([out], { type: format === 'j2c' ? 'application/octet-stream' : 'image/tiff' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        const suffix = pipeline === 'acescct' ? '_acescct16.tiff'
-                        : pipeline === 'arri-logc4' ? '_arri_logc4_16.tiff'
-                        : '_ap0_linear16.tiff';
+        const suffix = format === 'j2c'
+                        ? (pipeline === 'acescct' ? '_acescct16.j2c'
+                           : pipeline === 'arri-logc4' ? '_arri_logc4_16.j2c'
+                           : '_ap0_linear16.j2c')
+                        : (pipeline === 'acescct' ? '_acescct16.tiff'
+                           : pipeline === 'arri-logc4' ? '_arri_logc4_16.tiff'
+                           : '_ap0_linear16.tiff');
         a.download = (file.name.replace(/\.[^.]+$/, '') || 'output') + suffix;
         document.body.appendChild(a);
         a.click();
         a.remove();
         URL.revokeObjectURL(url);
-        log('Done. Downloaded TIFF.');
+        log('Done. Downloaded ' + (format === 'j2c' ? 'JPEG 2000' : 'TIFF') + '.');
       }
 
       processBtn.addEventListener('click', function() {
         const f = fileEl.files && fileEl.files[0];
         if (!f) {
-          log('Please choose an .ARW file.');
+          log('Please choose a RAW file.');
           return;
         }
         processBtn.disabled = true;
