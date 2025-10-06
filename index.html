@@ -85,10 +85,11 @@
       .btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
       .btn.primary {
-        background: linear-gradient(180deg, #2e7d32, #1b5e20);
-        border-color: #165a16;
+        background: linear-gradient(180deg, #b6ff00, #aaff00);
+        border-color: #88cc00;
+        color: var(--bg);
       }
-      .btn.primary:hover { background: linear-gradient(180deg, #338a37, #206a25); }
+      .btn.primary:hover { background: linear-gradient(180deg, #c8ff33, #b6ff00); color: var(--bg); }
 
       /* Icon button */
       .icon-btn {
@@ -187,7 +188,7 @@
   <body>
     <div class="app">
       <h2>RAWZONE</h2>
-      <p class="helper">Batch convert RAW photos to Log and ACES formats in Chrome</p>
+      <p class="helper">Batch convert RAW photos to Log and ACES formats in your browser</p>
       <div class="row">
         <div class="file-chooser">
           <label for="file" class="btn">Choose RAW</label>
@@ -195,17 +196,17 @@
           <input id="file" type="file" multiple accept=".3fr,.ari,.arw,.bay,.cap,.crw,.cr2,.cr3,.dcs,.dcr,.dng,.drf,.eip,.erf,.fff,.gpr,.iiq,.k25,.kdc,.mdc,.mef,.mos,.mrw,.nef,.nrw,.obm,.orf,.pef,.ptx,.pxn,.r3d,.raf,.raw,.rw2,.rwl,.rwz,.sr2,.srf,.srw,.x3f">
         </div>
         <div class="center-controls">
-          <div class="select">
-            <select id="pipeline">
-              <option value="ap0-linear">ACES2065-1 (Linear APO)</option>
-              <option value="acescct">ACEScct (ACEScct AP1)</option>
+        <div class="select">
+          <select id="pipeline">
+            <option value="ap0-linear">ACES2065-1 (Linear APO)</option>
+            <option value="acescct">ACEScct (ACEScct AP1)</option>
               <option value="arri-logc4" selected>ARRI LogC4 AWG4</option>
-            </select>
-          </div>
-          <div class="select">
-            <select id="format" title="Output format">
-              <option value="tiff">TIFF (16-bit)</option>
-            </select>
+          </select>
+        </div>
+        <div class="select">
+          <select id="format" title="Output format">
+            <option value="tiff">TIFF (16-bit)</option>
+          </select>
           </div>
         </div>
         <div class="right-controls">
@@ -217,13 +218,11 @@
         <div class="progress-wrap" aria-label="Batch progress"><div id="progressBar"></div></div>
       </div>
       <div id="log" aria-live="polite"></div>
-      <div id="downloadList" class="row" style="display:none; flex-direction: column; align-items: stretch; gap: var(--space-2);
-        ">
-      </div>
       <div class="row">
         <button id="process" class="btn primary">Process</button>
         <button id="cancel" class="btn" style="display:none;">Cancel</button>
       </div>
+      
     </div>
 
     <div id="infoModal" class="modal" style="display:none;">
@@ -263,6 +262,7 @@
       const progressWrap = document.getElementById('progressWrap');
       const infoModal = document.getElementById('infoModal');
       const closeInfoBtn = document.getElementById('closeInfo');
+      const saveList = document.getElementById('saveList');
 
       function log(message) {
         logEl.textContent = message;
@@ -286,7 +286,6 @@
       let outputSummaryLabel = 'Downloads';
       let successCount = 0;
       let failureCount = 0;
-      const IS_SAFARI = /Safari\//.test(navigator.userAgent) && !/Chrom(e|ium)\//.test(navigator.userAgent);
 
       // Progress tracking across batch
       const STAGE_PROGRESS = {
@@ -387,10 +386,9 @@
           log('Destination selected: ' + (dir.name || '(unnamed)'));
         } catch (err) {
           console.warn(err);
-          // On Safari this is expected; simply keep default behavior
+          log('Destination selection cancelled or not writable.');
           chosenDirHandle = null;
           chooseDestBtn.textContent = '📁 Downloads';
-          log('Using Downloads.');
         }
       });
 
@@ -434,36 +432,19 @@
         });
       }
 
-      const downloadListEl = document.getElementById('downloadList');
-      function offerManualDownload(blob, filename) {
-        downloadListEl.style.display = 'flex';
-        const row = document.createElement('div');
-        row.style.display = 'flex';
-        row.style.gap = 'var(--space-2)';
-        row.style.alignItems = 'center';
-        const name = document.createElement('span');
-        name.className = 'file-name';
-        name.textContent = filename;
-        const btn = document.createElement('button');
-        btn.className = 'btn';
-        btn.textContent = 'Save';
-        btn.addEventListener('click', () => {
-          try {
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = filename;
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            URL.revokeObjectURL(url);
-            btn.disabled = true;
-            btn.textContent = 'Saved';
-          } catch (_) {}
-        });
-        row.appendChild(name);
-        row.appendChild(btn);
-        downloadListEl.appendChild(row);
+      // Safari fallback: show manual save links when automatic download fails or is blocked
+      function appendManualSaveLink(filename, blob) {
+        try {
+          saveList.style.display = 'flex';
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = filename;
+          a.textContent = 'Save: ' + filename;
+          a.className = 'btn';
+          a.style.marginBottom = '4px';
+          saveList.appendChild(a);
+        } catch (_) {}
       }
       async function getUniqueFileHandle(dirHandle, fileName) {
         // Ensure we do not overwrite an existing file
@@ -616,13 +597,8 @@
             if (chosenDirHandle) {
               throw err;
             } else {
-              if (IS_SAFARI) {
-                offerManualDownload(blob, outputName);
-                log('Ready to save: ' + outputName + ' (click Save)');
-              } else {
-                await enqueueDownload(blob, outputName);
-                log(((totalPlanned > 1) ? '' : 'Done! ') + 'Saved to Downloads: ' + outputName);
-              }
+              await enqueueDownload(blob, outputName);
+              log(((totalPlanned > 1) ? '' : 'Done! ') + 'Saved to Downloads: ' + outputName);
               successCount++;
             }
           } finally {
@@ -630,14 +606,16 @@
           }
         } else {
           setJobProgress(jobId, STAGE_PROGRESS['saving']);
-          if (IS_SAFARI) {
-            offerManualDownload(blob, outputName);
-            log('Ready to save: ' + outputName + ' (click Save)');
-          } else {
+          try {
             await enqueueDownload(blob, outputName);
             log(((totalPlanned > 1) ? '' : 'Done! ') + 'Saved to Downloads: ' + outputName);
-          }
-          successCount++;
+            successCount++;
+          } catch (err) {}
+          try {
+            await enqueueDownload(blob, outputName);
+            log(((totalPlanned > 1) ? '' : 'Done! ') + 'Saved to Downloads: ' + outputName);
+            successCount++;
+          } catch (err) {}
           finishJob(jobId);
         }
       }
@@ -676,7 +654,7 @@
           const tasks = [];
           for (let i = 0; i < total; i++) {
             tasks.push(processFile(files[i]).catch(err => {
-              console.error(err);
+          console.error(err);
               log('Error on ' + files[i].name + ': ' + (err && err.message ? err.message : String(err)));
               // Count failed file toward overall progress
               // We do not have jobId here on failure before enqueue resolves; ignore as minor
@@ -698,12 +676,6 @@
             log('Done!');
           }
           cancelBtn.style.display = 'none';
-          if (IS_SAFARI && !outputDirHandle) {
-            // Keep the manual download list visible; user may still be saving items
-          } else {
-            downloadListEl.style.display = 'none';
-            downloadListEl.innerHTML = '';
-          }
         });
       });
 
