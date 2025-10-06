@@ -4,6 +4,34 @@ import LibRawModule from './libraw.js';
 let moduleRef = null;
 let lib = null;
 
+// One-time 16-bit LUT to decode Rec.709 transfer to linear
+let bt709DecodeLUT = null;
+function initBT709DecodeLUT() {
+  if (bt709DecodeLUT) return bt709DecodeLUT;
+  const lut = new Uint16Array(65536);
+  for (let v = 0; v < 65536; v++) {
+    const e = v / 65535;
+    let l;
+    if (e <= 0.081) {
+      l = e / 4.5;
+    } else {
+      l = Math.pow((e + 0.099) / 1.099, 1 / 0.45);
+    }
+    if (l < 0) l = 0;
+    else if (l > 1) l = 1;
+    lut[v] = Math.round(l * 65535);
+  }
+  bt709DecodeLUT = lut;
+  return lut;
+}
+
+function applyBT709DecodeInPlace(u16) {
+  const lut = initBT709DecodeLUT();
+  for (let i = 0; i < u16.length; i++) {
+    u16[i] = lut[u16[i]];
+  }
+}
+
 async function ensureLib() {
   if (lib) return lib;
   if (!moduleRef) {
@@ -91,6 +119,9 @@ self.onmessage = async (e) => {
         throw new Error('Unexpected imageData byte length');
       }
     }
+
+    // Decode Rec.709 transfer function to linear (in-place) before encoding
+    applyBT709DecodeInPlace(pixelsU16);
 
     // Encode baseline uncompressed TIFF, 3 samples, 16-bit unsigned, chunky
     const spp = 3;
