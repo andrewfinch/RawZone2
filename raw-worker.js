@@ -2,7 +2,6 @@
 import LibRawModule from './libraw.js';
 
 let moduleRef = null;
-let lib = null;
 
 // One-time 16-bit LUT to decode Rec.709 transfer to linear
 let bt709DecodeLUT = null;
@@ -198,16 +197,13 @@ function encodeLogC4ToU16(E, a, b, c, s, t) {
   return Math.round(y * 65535);
 }
 
-async function ensureLib() {
-  if (lib) return lib;
+async function ensureModule() {
   if (!moduleRef) {
     moduleRef = await LibRawModule({
       locateFile: p => (p.endsWith('.wasm') ? './libraw.wasm' : p)
     });
   }
-  const LibRawClass = moduleRef.LibRaw;
-  lib = new LibRawClass();
-  return lib;
+  return moduleRef;
 }
 
 self.onmessage = async (e) => {
@@ -217,7 +213,9 @@ self.onmessage = async (e) => {
     const bytes = data.bytes; // ArrayBuffer
     const settings = data.settings || {};
 
-    const instance = await ensureLib();
+    const mod = await ensureModule();
+    const LibRawClass = mod.LibRaw;
+    const instance = new LibRawClass();
     // Force linear pipeline: gamma 1.0, preserve color behavior with noAutoScale=false
     const linearSettings = Object.assign({}, settings, {
       noAutoBright: true,
@@ -268,17 +266,19 @@ self.onmessage = async (e) => {
       if (pixelsView.length !== width * height * 3) {
         throw new Error('Unexpected data length for 16-bit image');
       }
-      pixelsU16 = pixelsView;
+      // Copy off the WASM heap to avoid aliasing across jobs
+      pixelsU16 = new Uint16Array(pixelsView);
     } else {
       const u8 = pixelsView instanceof Uint8Array ? pixelsView : new Uint8Array(pixelsView.buffer, pixelsView.byteOffset, pixelsView.byteLength);
       const expected16ByteLen = width * height * 3 * 2;
       const expected8ByteLen = width * height * 3;
       if (u8.length === expected16ByteLen) {
         const n = u8.length >>> 1;
-        pixelsU16 = new Uint16Array(n);
+        const tmp = new Uint16Array(n);
         for (let i = 0, j = 0; i < n; i++, j += 2) {
-          pixelsU16[i] = u8[j] | (u8[j + 1] << 8);
+          tmp[i] = u8[j] | (u8[j + 1] << 8);
         }
+        pixelsU16 = tmp;
       } else if (u8.length === expected8ByteLen) {
         throw new Error('Decoder returned 8-bit data; 16-bit required');
       } else {
@@ -304,6 +304,11 @@ self.onmessage = async (e) => {
     const bits = [16, 16, 16];
     const sampleFormat = [1, 1, 1];
     const tiffBytes = encodeTiff16le(width, height, spp, bits, sampleFormat, pixelsU16);
+
+    // Best-effort cleanup of native resources
+    try { instance.close && instance.close(); } catch (_) {}
+    try { instance.recycle && instance.recycle(); } catch (_) {}
+    try { instance.delete && instance.delete(); } catch (_) {}
 
     self.postMessage({ out: tiffBytes }, [tiffBytes.buffer]);
   } catch (err) {

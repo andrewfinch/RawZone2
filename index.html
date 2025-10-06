@@ -124,7 +124,7 @@
         <div class="file-chooser">
           <label for="file" class="btn">Choose RAW</label>
           <span id="fileName" class="file-name" aria-live="polite">No file selected</span>
-          <input id="file" type="file" accept=".3fr,.ari,.arw,.bay,.cap,.crw,.cr2,.cr3,.dcs,.dcr,.dng,.drf,.eip,.erf,.fff,.gpr,.iiq,.k25,.kdc,.mdc,.mef,.mos,.mrw,.nef,.nrw,.obm,.orf,.pef,.ptx,.pxn,.r3d,.raf,.raw,.rw2,.rwl,.rwz,.sr2,.srf,.srw,.x3f">
+          <input id="file" type="file" multiple accept=".3fr,.ari,.arw,.bay,.cap,.crw,.cr2,.cr3,.dcs,.dcr,.dng,.drf,.eip,.erf,.fff,.gpr,.iiq,.k25,.kdc,.mdc,.mef,.mos,.mrw,.nef,.nrw,.obm,.orf,.pef,.ptx,.pxn,.r3d,.raf,.raw,.rw2,.rwl,.rwz,.sr2,.srf,.srw,.x3f">
         </div>
         <div class="select">
           <select id="pipeline">
@@ -136,7 +136,6 @@
         <div class="select">
           <select id="format" title="Output format">
             <option value="tiff">TIFF (16-bit)</option>
-            <option value="j2c">JPEG 2000 Codestream (.j2c)</option>
           </select>
         </div>
         <button id="process" class="btn primary">Process</button>
@@ -171,8 +170,14 @@
       const worker = new Worker('./raw-worker.js', { type: 'module' });
 
       fileEl.addEventListener('change', function() {
-        const f = fileEl.files && fileEl.files[0];
-        fileNameEl.textContent = f ? f.name : 'No file selected';
+        const files = fileEl.files;
+        if (!files || files.length === 0) {
+          fileNameEl.textContent = 'No file selected';
+        } else if (files.length === 1) {
+          fileNameEl.textContent = files[0].name;
+        } else {
+          fileNameEl.textContent = files.length + ' files selected';
+        }
       });
 
       async function processFile(file) {
@@ -196,15 +201,11 @@
           worker.postMessage({ cmd: 'process', bytes: buffer, settings, pipeline, format }, [buffer]);
         });
 
-        const blob = new Blob([out], { type: format === 'j2c' ? 'application/octet-stream' : 'image/tiff' });
+        const blob = new Blob([out], { type: 'image/tiff' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        const suffix = format === 'j2c'
-                        ? (pipeline === 'acescct' ? '_acescct16.j2c'
-                           : pipeline === 'arri-logc4' ? '_arri_logc4_16.j2c'
-                           : '_ap0_linear16.j2c')
-                        : (pipeline === 'acescct' ? '_acescct16.tiff'
+        const suffix = (pipeline === 'acescct' ? '_acescct16.tiff'
                            : pipeline === 'arri-logc4' ? '_arri_logc4_16.tiff'
                            : '_ap0_linear16.tiff');
         a.download = (file.name.replace(/\.[^.]+$/, '') || 'output') + suffix;
@@ -212,20 +213,29 @@
         a.click();
         a.remove();
         URL.revokeObjectURL(url);
-        log('Done. Downloaded ' + (format === 'j2c' ? 'JPEG 2000' : 'TIFF') + '.');
+        log('Done. Downloaded TIFF.');
       }
 
       processBtn.addEventListener('click', function() {
-        const f = fileEl.files && fileEl.files[0];
-        if (!f) {
-          log('Please choose a RAW file.');
+        const files = fileEl.files;
+        if (!files || files.length === 0) {
+          log('Please choose RAW file(s).');
           return;
         }
         processBtn.disabled = true;
-        processFile(f).catch(function(err) {
-          console.error(err);
-          log('Error: ' + (err && err.message ? err.message : String(err)));
-        }).finally(function() {
+        (async () => {
+          const total = files.length;
+          for (let i = 0; i < total; i++) {
+            const f = files[i];
+            log('Processing ' + (i + 1) + '/' + total + ': ' + f.name);
+            try {
+              await processFile(f);
+            } catch (err) {
+              console.error(err);
+              log('Error on ' + f.name + ': ' + (err && err.message ? err.message : String(err)));
+            }
+          }
+        })().finally(function() {
           processBtn.disabled = false;
         });
       });
