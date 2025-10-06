@@ -15,6 +15,10 @@
     <h2>ARW → Linear XYZ 16‑bit TIFF</h2>
     <div class="row">
       <input id="file" type="file" accept=".arw,.ARW">
+      <select id="pipeline">
+        <option value="ap0-linear">AP0 Linear (Rec.709 → linear)</option>
+        <option value="acescct">ACEScct (709→linear → AP1 → ACEScct)</option>
+      </select>
       <button id="process">Process</button>
     </div>
     <div id="log" aria-live="polite"></div>
@@ -33,6 +37,7 @@
       };
 
       const fileEl = document.getElementById('file');
+      const pipelineEl = document.getElementById('pipeline');
       const processBtn = document.getElementById('process');
       const logEl = document.getElementById('log');
 
@@ -45,6 +50,7 @@
       async function processFile(file) {
         log('Reading file…');
         const buffer = await file.arrayBuffer();
+        const pipeline = pipelineEl.value;
 
         log('Decoding RAW in worker…');
         const { out } = await new Promise((resolve, reject) => {
@@ -58,14 +64,15 @@
             resolve(data);
           }
           worker.addEventListener('message', onMessage);
-          worker.postMessage({ cmd: 'process', bytes: buffer, settings }, [buffer]);
+          worker.postMessage({ cmd: 'process', bytes: buffer, settings, pipeline }, [buffer]);
         });
 
         const blob = new Blob([out], { type: 'image/tiff' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = (file.name.replace(/\.[^.]+$/, '') || 'output') + '_xyz16.tiff';
+        const suffix = pipeline === 'acescct' ? '_acescct16.tiff' : '_ap0_linear16.tiff';
+        a.download = (file.name.replace(/\.[^.]+$/, '') || 'output') + suffix;
         document.body.appendChild(a);
         a.click();
         a.remove();

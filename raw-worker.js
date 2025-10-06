@@ -32,6 +32,40 @@ function applyBT709DecodeInPlace(u16) {
   }
 }
 
+// Single-pass: Rec.709 decode -> AP0 to AP1 -> ACEScct encode (in-place)
+function apply709ToACEScctInPlace(u16) {
+  const lut = initBT709DecodeLUT();
+  // AP0 -> AP1 (ACEScg) matrix
+  const m00 = 1.4514393161, m01 = -0.2365107469, m02 = -0.2149285693;
+  const m10 = -0.0765537733, m11 = 1.1762296998, m12 = -0.0996759265;
+  const m20 = 0.0083161484, m21 = -0.0060324498, m22 = 0.9977163014;
+  // ACEScct constants
+  const cut = 0.0078125; // 2^-7
+  const a = 10.5402377416545;
+  const b = 0.0729055341958355;
+  for (let i = 0; i < u16.length; i += 3) {
+    // 709 decode to linear AP0
+    let r = lut[u16[i]] / 65535;
+    let g = lut[u16[i + 1]] / 65535;
+    let bch = lut[u16[i + 2]] / 65535;
+    // AP0 -> AP1
+    const rr = m00 * r + m01 * g + m02 * bch;
+    const gg = m10 * r + m11 * g + m12 * bch;
+    const bb = m20 * r + m21 * g + m22 * bch;
+    // Encode ACEScct per channel
+    u16[i] = encodeCctToU16(rr);
+    u16[i + 1] = encodeCctToU16(gg);
+    u16[i + 2] = encodeCctToU16(bb);
+  }
+  function encodeCctToU16(x) {
+    let y;
+    if (x <= cut) y = a * x + b;
+    else y = (Math.log2(Math.max(x, 1e-10)) + 9.72) / 17.52;
+    if (y < 0) y = 0; else if (y > 1) y = 1;
+    return Math.round(y * 65535);
+  }
+}
+
 async function ensureLib() {
   if (lib) return lib;
   if (!moduleRef) {
@@ -120,8 +154,15 @@ self.onmessage = async (e) => {
       }
     }
 
-    // Decode Rec.709 transfer function to linear (in-place) before encoding
-    applyBT709DecodeInPlace(pixelsU16);
+    // Select pipeline
+    const pipeline = data.pipeline || 'ap0-linear';
+    if (pipeline === 'acescct') {
+      // 709->linear->AP1->ACEScct single-pass
+      apply709ToACEScctInPlace(pixelsU16);
+    } else {
+      // AP0 Linear: just decode Rec.709 to linear
+      applyBT709DecodeInPlace(pixelsU16);
+    }
 
     // Encode baseline uncompressed TIFF, 3 samples, 16-bit unsigned, chunky
     const spp = 3;
