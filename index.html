@@ -11,6 +11,11 @@
     <meta name="twitter:card" content="summary">
     <meta name="twitter:title" content="RAWZONE">
     <meta name="twitter:description" content="Convert RAW Photos to Log and ACES in Chrome">
+    <link rel="apple-touch-icon" sizes="180x180" href="./favicon_io/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="./favicon_io/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="./favicon_io/favicon-16x16.png">
+    <link rel="icon" href="./favicon_io/favicon.ico" sizes="any">
+    <link rel="manifest" href="./favicon_io/site.webmanifest">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
@@ -159,6 +164,13 @@
         color: var(--muted);
         pointer-events: none;
       }
+      /* Ensure sans-serif fonts inside menus (Safari tends to serif options) */
+      .select select, .select select option { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+      /* Format info modal layout */
+      .modal .format-list { display: flex; flex-direction: column; gap: var(--space-2); }
+      .modal .format-item { display: flex; align-items: flex-start; gap: var(--space-3); flex-wrap: wrap; }
+      .modal .format-title { font-weight: 700; color: var(--text); min-width: 120px; }
+      .modal .format-desc { color: var(--muted); margin-left: 0; flex: 1; }
 
       /* Log panel */
       #log {
@@ -190,6 +202,19 @@
       .modal .card { position: relative; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-4); padding: var(--space-4); max-width: 520px; margin: var(--space-4); box-shadow: var(--shadow); color: var(--text); }
       .modal h3 { margin: 0 0 var(--space-2); font-weight: 600; }
       .modal p { margin: 0 0 var(--space-3); color: var(--muted); }
+      /* Legal card below tool */
+      .legal-card {
+        max-width: 960px;
+        margin: var(--space-3) auto var(--space-6);
+        padding: var(--space-4);
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-5);
+        box-shadow: var(--shadow);
+      }
+      .legal-card .legal-text { color: var(--accent); font-size: 12px; margin: 0 0 var(--space-2); }
+      .legal-card a { color: #9bd600; text-decoration: none; }
+      .legal-card a:hover { color: #aaff00; text-decoration: underline; }
     </style>
   </head>
   <body>
@@ -213,12 +238,13 @@
         <div class="select">
           <select id="format" title="Output format">
             <option value="tiff">TIFF (16-bit)</option>
-            <option value="exr-dwaa">EXR DWAA</option>
+            <option value="exr-dwaa" selected>EXR DWAA</option>
             <option value="exr-piz">EXR PIZ</option>
             <option value="exr-zips">EXR ZIPS</option>
             <option value="exr-none">EXR Uncmp.</option>
           </select>
-          </div>
+        </div>
+        <button id="formatInfo" class="icon-btn" title="Format info">ⓘ</button>
         </div>
         <div class="right-controls">
           <button id="destInfo" class="icon-btn" title="Info">ⓘ</button>
@@ -229,11 +255,17 @@
         <div class="progress-wrap" aria-label="Batch progress"><div id="progressBar"></div></div>
       </div>
       <div id="log" aria-live="polite"></div>
+      <div id="saveList" class="row" style="display:none; flex-direction:column; gap: var(--space-2);"></div>
       <div class="row">
         <button id="process" class="btn primary">Process</button>
         <button id="cancel" class="btn" style="display:none;">Cancel</button>
       </div>
       
+    </div>
+
+    <div class="legal-card">
+      <p class="legal-text">This tool was vibe-coded by <a href="https://afinch.com" rel="noopener" target="_blank">Andrew</a> and it's provided "AS IS" without warranties or liability, so don't sue me if it messes up your nice photos or computer.</p>
+      <p class="legal-text">RAWZONE includes open‑source components: LibRaw (LGPL‑2.1/CDDL), OpenEXR (BSD‑3‑Clause), Emscripten (MIT) and is not affiliated with any camera vendor; trademarks are property of their owners. <a href="./third-party-notices.html" rel="noopener">Third‑Party Notices</a>.</p>
     </div>
 
     <div id="infoModal" class="modal" style="display:none;">
@@ -243,6 +275,43 @@
         <p>Some protected folders cannot be selected by the browser. Create a new folder or select an empty one. <br> <br>If you don't select a destination, files will be saved to your Downloads using the browser's download manager.</p>
         <div style="display:flex; gap: var(--space-2); justify-content:flex-end; margin-top: var(--space-3);">
           <button id="closeInfo" class="btn">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="formatModal" class="modal" style="display:none;">
+      <div class="overlay"></div>
+      <div class="card">
+        <h3>Format info</h3>
+        <br>
+        <div class="format-list">
+          <div class="format-item">
+            <div class="format-title">TIFF</div>
+            <div class="format-desc">Enormous file size, lossless quality, supported by everything.</div>
+          </div>
+          <br>
+          <div class="format-item">
+            <div class="format-title">EXR DWAA</div>
+            <div class="format-desc">“Visually lossless” — often 1/8th the size of uncompressed, supported by most things that support EXR (except for MacOS Finder/QuickLook).</div>
+          </div>
+          <br>
+          <div class="format-item">
+            <div class="format-title">EXR PIZ</div>
+            <div class="format-desc">Lossless — ~1/2 the size of uncompressed, well supported.</div>
+          </div>
+          <br>
+          <div class="format-item">
+            <div class="format-title">EXR ZIPS</div>
+            <div class="format-desc">Lossless — slightly bigger than PIZ, maybe faster decode, well supported.</div>
+          </div>
+          <br>
+          <div class="format-item">
+            <div class="format-title">EXR Uncomp.</div>
+            <div class="format-desc">Huge.</div>
+          </div>
+        </div>
+        <div style="display:flex; gap: var(--space-2); justify-content:flex-end; margin-top: var(--space-3);">
+          <button id="closeFormatInfo" class="btn">Close</button>
         </div>
       </div>
     </div>
@@ -263,6 +332,7 @@
       const fileEl = document.getElementById('file');
       const pipelineEl = document.getElementById('pipeline');
       const formatEl = document.getElementById('format');
+      const formatInfoBtn = document.getElementById('formatInfo');
       const processBtn = document.getElementById('process');
       const cancelBtn = document.getElementById('cancel');
       const chooseDestBtn = document.getElementById('chooseDest');
@@ -273,6 +343,8 @@
       const progressWrap = document.getElementById('progressWrap');
       const infoModal = document.getElementById('infoModal');
       const closeInfoBtn = document.getElementById('closeInfo');
+      const formatModal = document.getElementById('formatModal');
+      const closeFormatInfoBtn = document.getElementById('closeFormatInfo');
       const saveList = document.getElementById('saveList');
 
       function log(message) {
@@ -290,9 +362,24 @@
         }
       }
 
+      function createRawWorker() {
+        const w = new Worker('./raw-worker.js', { type: 'module' });
+        try {
+          w.addEventListener('error', (e) => {
+            try { console.error(e); } catch (_) {}
+            try { log('Worker error' + (e && e.message ? ': ' + e.message : '.')); } catch (_) {}
+          });
+          w.addEventListener('messageerror', (e) => {
+            try { console.error(e); } catch (_) {}
+            try { log('Worker message error.'); } catch (_) {}
+          });
+        } catch (_) {}
+        return w;
+      }
+
       const CPU = Math.max(1, (navigator.hardwareConcurrency || 2) - 1);
       const POOL_SIZE = Math.min(3, CPU);
-      const workers = Array.from({ length: POOL_SIZE }, () => new Worker('./raw-worker.js', { type: 'module' }));
+      const workers = Array.from({ length: POOL_SIZE }, () => createRawWorker());
       const idle = new Set(workers);
       const queue = [];
       let nextJobId = 1;
@@ -421,6 +508,13 @@
       closeInfoBtn.addEventListener('click', closeInfo);
       infoModal.querySelector('.overlay').addEventListener('click', closeInfo);
 
+      // Format info modal
+      function openFormatInfo() { formatModal.style.display = 'flex'; }
+      function closeFormatInfo() { formatModal.style.display = 'none'; }
+      if (formatInfoBtn) formatInfoBtn.addEventListener('click', openFormatInfo);
+      if (closeFormatInfoBtn) closeFormatInfoBtn.addEventListener('click', closeFormatInfo);
+      formatModal.querySelector('.overlay').addEventListener('click', closeFormatInfo);
+
       // Download queue to avoid multiple simultaneous downloads getting blocked by the browser
       const downloadQueue = [];
       let downloading = false;
@@ -448,9 +542,13 @@
         downloading = false;
       }
       function enqueueDownload(blob, filename) {
-        return new Promise(resolve => {
-          downloadQueue.push({ blob, filename, resolve });
-          processDownloadQueue();
+        return new Promise((resolve, reject) => {
+          try {
+            downloadQueue.push({ blob, filename, resolve });
+            processDownloadQueue();
+          } catch (e) {
+            reject(e);
+          }
         });
       }
 
@@ -465,6 +563,10 @@
           a.textContent = 'Save: ' + filename;
           a.className = 'btn';
           a.style.marginBottom = '4px';
+          a.addEventListener('click', () => {
+            // revoke shortly after click
+            setTimeout(() => { try { URL.revokeObjectURL(url); } catch (_) {} }, 1000);
+          });
           saveList.appendChild(a);
         } catch (_) {}
       }
@@ -530,7 +632,7 @@
           if (processed >= maxJobsPerWorker) {
             try { worker.terminate(); } catch (_) {}
             processedByWorker.delete(worker);
-            const nw = new Worker('./raw-worker.js', { type: 'module' });
+            const nw = createRawWorker();
             idle.add(nw);
           } else {
             idle.add(worker);
@@ -570,7 +672,7 @@
               try { worker.removeEventListener('message', onMsg); } catch (_) {}
               inFlight.delete(worker);
               try { worker.terminate(); } catch (_) {}
-              const nw = new Worker('./raw-worker.js', { type: 'module' });
+              const nw = createRawWorker();
               idle.add(nw);
               if (timerId) { clearTimeout(timerId); timerId = null; }
               activeCount--;
@@ -636,9 +738,15 @@
             if (chosenDirHandle) {
               throw err;
             } else {
-              await enqueueDownload(blob, outputName);
-              log(((totalPlanned > 1) ? '' : 'Done! ') + 'Saved to Downloads: ' + outputName);
-              successCount++;
+              try {
+                await enqueueDownload(blob, outputName);
+                log(((totalPlanned > 1) ? '' : 'Done! ') + 'Saved to Downloads: ' + outputName);
+                successCount++;
+              } catch (e) {
+                appendManualSaveLink(outputName, blob);
+                log('Download blocked. Use the Save link below: ' + outputName);
+                failureCount++;
+              }
             }
           } finally {
             finishJob(jobId);
@@ -649,7 +757,11 @@
             await enqueueDownload(blob, outputName);
             log(((totalPlanned > 1) ? '' : 'Done! ') + 'Saved to Downloads: ' + outputName);
             successCount++;
-          } catch (err) {}
+          } catch (err) {
+            appendManualSaveLink(outputName, blob);
+            log('Download blocked. Use the Save link below: ' + outputName);
+            failureCount++;
+          }
           finishJob(jobId);
         }
       }
@@ -730,7 +842,7 @@
           inFlight.delete(w);
           activeCount = Math.max(0, activeCount - 1);
           // Replace with a new worker ready to accept work
-          const nw = new Worker('./raw-worker.js', { type: 'module' });
+          const nw = createRawWorker();
           idle.add(nw);
         }
         processBtn.disabled = false;

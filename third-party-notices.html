@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Third-Party Notices</title>
+    <style>
+      :root { color-scheme: dark; }
+      body { margin: 0; padding: 24px; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background: #0e0e10; color: #e8e9ea; }
+      a { color: #9fd3ff; }
+      h1 { font-size: 20px; margin: 0 0 12px; }
+      h2 { font-size: 16px; margin: 20px 0 8px; }
+      pre { white-space: pre-wrap; background: #141414; padding: 12px; border: 1px solid #252527; border-radius: 8px; font-size: 12px; }
+      .muted { color: #a1a1aa; }
+    </style>
+  </head>
+  <body>
+    <h1>Third-Party Notices</h1>
+    <p class="muted">RAWZONE includes and uses open‑source components. Licenses are reproduced below.</p>
+
+    <h2>Project attribution</h2>
+    <ul>
+      <li>LibRaw — <a href="https://www.libraw.org/" rel="noopener" target="_blank">libraw.org</a> (LGPL‑2.1 or CDDL‑1.0)</li>
+      <li>OpenEXR / Imath — <a href="https://github.com/AcademySoftwareFoundation/openexr" rel="noopener" target="_blank">ASWF OpenEXR</a> (BSD‑3‑Clause)</li>
+      <li>Emscripten — <a href="https://github.com/emscripten-core/emscripten" rel="noopener" target="_blank">emscripten</a> (MIT)</li>
+      <li>Font: Press Start 2P — <a href="https://fonts.google.com/specimen/Press+Start+2P" rel="noopener" target="_blank">Google Fonts</a> (OFL‑1.1)</li>
+      <li>OpenJPEG (if present in a given build) — <a href="https://github.com/uclouvain/openjpeg" rel="noopener" target="_blank">OpenJPEG</a> (BSD‑2‑Clause)</li>
+    </ul>
+
+    <h2>Warranty and liability</h2>
+    <pre>This software is provided "AS IS", without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose and noninfringement. In no event shall the authors or copyright holders be liable for any claim, damages or other liability, whether in an action of contract, tort or otherwise, arising from, out of or in connection with the software or the use or other dealings in the software.</pre>
+
+    <h2>LibRaw (LGPL‑2.1 or CDDL‑1.0)</h2>
+    <p class="muted">This application includes a WebAssembly build of LibRaw. To comply with LGPL/CDDL, we provide source and relinking information below.</p>
+    <ul>
+      <li>Source: the corresponding source for the LibRaw build used here is available via the libraw-wasm project and upstream LibRaw. Upstream: <a href="https://www.libraw.org/" rel="noopener" target="_blank">libraw.org</a>. WASM wrapper: <a href="https://www.npmjs.com/package/libraw-wasm" rel="noopener" target="_blank">libraw-wasm</a>.</li>
+      <li>Relinking: you may relink or replace <code>libraw.wasm</code>/<code>libraw.js</code> with a modified LibRaw built from source. The app dynamically loads these artifacts; dropping in compatible rebuilt files will use your version.</li>
+      <li>We will provide copies of the exact LibRaw and wrapper sources used in this build upon request.</li>
+    </ul>
+    <pre>
+LGPL-2.1 License (excerpt)
+
+This program is free software; you can redistribute it and/or modify it under the terms of the GNU Lesser General Public License as published by the Free Software Foundation; version 2.1.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public License for more details.
+
+Full text: https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html
+    </pre>
+    <pre>
+CDDL-1.0 License (reference)
+Full text: https://opensource.org/license/cddl-1-0/
+    </pre>
+
+    <h2>OpenEXR / Imath (BSD‑3‑Clause)</h2>
+    <pre>
+Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
+3. Neither the name of the &lt;organization&gt; nor the names of its contributors may be used to endorse or promote products derived from this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+    </pre>
+
+    <h2>OpenJPEG (BSD‑2‑Clause)</h2>
+    <pre>
+Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+    </pre>
+
+    <h2>Emscripten (MIT)</h2>
+    <pre>
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+    </pre>
+
+    <h2>Press Start 2P (OFL‑1.1)</h2>
+    <pre>
+This Font Software is licensed under the SIL Open Font License, Version 1.1.
+The full license text is available at: https://scripts.sil.org/OFL
+    </pre>
+
+    <p class="muted">For questions or to request exact source bundles used in a specific build, contact the project maintainer.</p>
+  </body>
+  </html>
+
+

@@ -1,9 +1,9 @@
-EXR DWAA (OpenEXR Core WASM) minimal test
+# EXR DWAA (OpenEXR Core WASM) test
 
-This folder builds OpenEXR Core (C API) to WebAssembly and encodes uncompressed 16-bit RGBA TIFF into OpenEXR with DWAA compression, entirely in Chrome.
+This folder contains build scripts and test harnesses for the EXR encoder used by the main app. The main UI in `index.html` drives EXR encoding; this folder is for development only.
 
 Prereqs
-- Emscripten SDK installed and active in your shell (`emcmake`, `emcc` available)
+- Emscripten SDK installed and active in your shell (`emcmake`, `emcc`)
 - macOS or Linux recommended
 
 Build
@@ -15,23 +15,19 @@ cd "exr test"
 
 Outputs `exr-encoder.js` and `exr-encoder.wasm` in this folder.
 
-Run
+Usage in app
+- The main app dynamically imports the encoder from `exr-test/exr-encoder.js` or `exr%20test/exr-encoder.js` (fallback), and resolves the `.wasm` relative to that module path.
+- You do not need to open this page to use EXR; just run the main `index.html`.
 
-Use the existing local server from the project root (it sets COOP/COEP headers):
-
+Local dev server
 ```
 npm start
-# then open http://localhost:8081/exr%20test/index.html
+# open http://localhost:8081/
 ```
-
-Choose an uncompressed 16-bit RGBA TIFF (8K), set DWA level (default 45), click Convert.
-
-Result downloads as `output_dwaa.exr`.
 
 Notes
 - Uses OpenEXR Core C API, DWAA compression, scanline, RGBA HALF channels
 - Each encode runs in its own Worker with its own WASM instance
 - DWA level ~45 targets ≈4:1; tweak as desired
-- The bundled TIFF reader is minimal: only uncompressed little-endian contiguous RGBA/RGB 16-bit
 
 

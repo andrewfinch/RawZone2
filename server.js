@@ -21,10 +21,7 @@ const server = http.createServer((req, res) => {
   let p = rawPath === '/' ? 'index.html' : rawPath;
   try { p = decodeURIComponent(p); } catch (_) {}
   if (p.startsWith('/')) p = p.slice(1);
-  // Friendly aliases for the EXR test page to avoid space in URL
-  if (p === 'exr' || p === 'exr/' || p === 'exr-test' || p === 'exr-test/') {
-    p = 'exr test/index.html';
-  }
+  // No demo aliases; serve files as-is
   let filePath = path.join(root, p);
   if (!filePath.startsWith(root)) {
     res.writeHead(403);

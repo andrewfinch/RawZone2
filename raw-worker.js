@@ -7,13 +7,20 @@ let moduleRef = null;
 let exrModulePromise = null;
 async function ensureExrModule() {
   if (!exrModulePromise) {
-    const EXR_ENCODER_PATH = new URL('./exr%20test/exr-encoder.js', import.meta.url).href;
-    exrModulePromise = import(EXR_ENCODER_PATH).then(mod => {
+    const tryLoad = async (relPath) => {
+      const href = new URL(relPath, import.meta.url).href;
+      const mod = await import(href);
       if (mod && typeof mod.default === 'function') {
-        return mod.default({ locateFile: (path) => new URL(path, EXR_ENCODER_PATH).href });
+        return mod.default({ locateFile: (path, base) => new URL(path, base || href).href });
       }
       return mod || {};
-    });
+    };
+    exrModulePromise = (async () => {
+      try {
+        return await tryLoad('./exr-test/exr-encoder.js');
+      } catch (_) {}
+      return await tryLoad('./exr%20test/exr-encoder.js');
+    })();
   }
   return exrModulePromise;
 }
@@ -289,7 +296,7 @@ function encodeLogC4ToU16(E, a, b, c, s, t) {
 async function ensureModule() {
   if (!moduleRef) {
     moduleRef = await LibRawModule({
-      locateFile: p => (p.endsWith('.wasm') ? './libraw.wasm' : p)
+      locateFile: p => new URL(p, import.meta.url).href
     });
   }
   return moduleRef;
@@ -439,81 +446,7 @@ self.onmessage = async (e) => {
   }
 };
 
-// Minimal TIFF encoder (little-endian), one strip, 3x16-bit chunky
-function encodeTiff16le(width, height, samplesPerPixel, bitsPerSampleArr, sampleFormatArr, pixelsU16) {
-  const numPixels = width * height;
-  const bytesPerSample = 2;
-  const imageBytes = numPixels * samplesPerPixel * bytesPerSample;
-
-  const headerBytes = 8; // TIFF header
-  const bpsOffset = headerBytes + imageBytes; // SHORT[3]
-  const sfOffset = bpsOffset + bitsPerSampleArr.length * 2; // SHORT[3]
-
-  const ifdEntryCount = 12;
-  const ifdBytes = 2 + ifdEntryCount * 12 + 4;
-  const ifdOffset = sfOffset + sampleFormatArr.length * 2;
-
-  const totalBytes = ifdOffset + ifdBytes;
-  const buf = new ArrayBuffer(totalBytes);
-  const dv = new DataView(buf);
-  let off = 0;
-
-  // Header: II 42 firstIFD
-  dv.setUint8(off++, 0x49); dv.setUint8(off++, 0x49);
-  dv.setUint16(off, 42, true); off += 2;
-  dv.setUint32(off, ifdOffset, true); off += 4;
-
-  // Pixel data (little-endian)
-  let p = headerBytes;
-  for (let i = 0; i < pixelsU16.length; i++) {
-    dv.setUint16(p, pixelsU16[i], true);
-    p += 2;
-  }
-
-  // BitsPerSample array
-  for (let i = 0; i < bitsPerSampleArr.length; i++) {
-    dv.setUint16(bpsOffset + i * 2, bitsPerSampleArr[i], true);
-  }
-  // SampleFormat array (1=unsigned)
-  for (let i = 0; i < sampleFormatArr.length; i++) {
-    dv.setUint16(sfOffset + i * 2, sampleFormatArr[i], true);
-  }
-
-  // IFD entries
-  let io = ifdOffset;
-  dv.setUint16(io, ifdEntryCount, true); io += 2;
-
-  function entry(tag, type, count, valueOrOffset) {
-    dv.setUint16(io, tag, true); io += 2;
-    dv.setUint16(io, type, true); io += 2;
-    dv.setUint32(io, count, true); io += 4;
-    dv.setUint32(io, valueOrOffset, true); io += 4;
-  }
-
-  const TYPE_SHORT = 3;
-  const TYPE_LONG = 4;
-
-  const stripOffset = headerBytes;
-  const stripByteCount = imageBytes;
-
-  entry(256, TYPE_LONG, 1, width);               // ImageWidth
-  entry(257, TYPE_LONG, 1, height);              // ImageLength
-  entry(258, TYPE_SHORT, bitsPerSampleArr.length, bpsOffset); // BitsPerSample
-  entry(259, TYPE_SHORT, 1, 1);                  // Compression = None
-  entry(262, TYPE_SHORT, 1, 2);                  // Photometric = RGB (we store XYZ as 3 samples)
-  entry(273, TYPE_LONG, 1, stripOffset);         // StripOffsets
-  entry(277, TYPE_SHORT, 1, samplesPerPixel);    // SamplesPerPixel
-  entry(278, TYPE_LONG, 1, height);              // RowsPerStrip
-  entry(279, TYPE_LONG, 1, stripByteCount);      // StripByteCounts
-  entry(284, TYPE_SHORT, 1, 1);                  // PlanarConfiguration = Chunky
-  entry(339, TYPE_SHORT, sampleFormatArr.length, sfOffset); // SampleFormat
-  entry(274, TYPE_SHORT, 1, 1);                  // Orientation = Top-left
-
-  // next IFD = 0
-  dv.setUint32(io, 0, true); io += 4;
-
-  return new Uint8Array(buf);
-}
+// (encodeTiff16le removed as unused; keep encodeTiff16leWithColorimetry only)
 
 // Extended TIFF encoder adding WhitePoint (318), PrimaryChromaticities (319) and ImageDescription (270)
 function encodeTiff16leWithColorimetry(width, height, samplesPerPixel, bitsPerSampleArr, sampleFormatArr, pixelsU16, whitePoint, primaries, imageDescription) {
