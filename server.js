@@ -17,8 +17,15 @@ const mime = {
 };
 
 const server = http.createServer((req, res) => {
-  const urlPath = req.url.split('?')[0];
-  let filePath = path.join(root, urlPath === '/' ? 'index.html' : urlPath);
+  const rawPath = req.url.split('?')[0];
+  let p = rawPath === '/' ? 'index.html' : rawPath;
+  try { p = decodeURIComponent(p); } catch (_) {}
+  if (p.startsWith('/')) p = p.slice(1);
+  // Friendly aliases for the EXR test page to avoid space in URL
+  if (p === 'exr' || p === 'exr/' || p === 'exr-test' || p === 'exr-test/') {
+    p = 'exr test/index.html';
+  }
+  let filePath = path.join(root, p);
   if (!filePath.startsWith(root)) {
     res.writeHead(403);
     res.end('Forbidden');
