@@ -673,11 +673,6 @@
             log(((totalPlanned > 1) ? '' : 'Done! ') + 'Saved to Downloads: ' + outputName);
             successCount++;
           } catch (err) {}
-          try {
-            await enqueueDownload(blob, outputName);
-            log(((totalPlanned > 1) ? '' : 'Done! ') + 'Saved to Downloads: ' + outputName);
-            successCount++;
-          } catch (err) {}
           finishJob(jobId);
         }
       }
