@@ -2,9 +2,9 @@
   "name": "rawzone2",
   "version": "1.0.0",
   "description": "This is a dead-simple, single-page app that accepts a Sony `.ARW` RAW file and outputs a 16-bit linear XYZ TIFF using [LibRaw-Wasm](https://github.com/ybouane/LibRaw-Wasm). No fallbacks, no transforms beyond LibRaw settings, no ICC tagging.",
-  "main": "index.js",
+  "main": "dev/server.js",
   "scripts": {
-    "start": "node server.js",
+    "start": "node dev/server.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -12,8 +12,6 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "@abasb75/openjpeg": "^2.5.3",
-    "@cornerstonejs/codec-openjpeg": "^1.2.4",
     "libraw-wasm": "^1.1.2"
   }
 }

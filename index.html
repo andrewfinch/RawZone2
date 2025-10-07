@@ -265,7 +265,7 @@
     </div>
 
     <div class="legal-card">
-      <p class="legal-text">This tool was vibe-coded by <a href="https://www.afinch.com" rel="noopener" target="_blank">Andrew</a>. It runs entirely in your browser. Images you select are processed on your computer and are never uploaded to a server. In fact it will work without an internet connection. Also this tool is provided "AS IS" without warranties or liability.</p>
+      <p class="legal-text">This tool was vibe-coded by <a href="https://afinch.com" rel="noopener" target="_blank">Andrew</a>. It runs entirely in your browser. Images you select are processed on your computer and are never uploaded to a server. In fact it will work without an internet connection. Also this tool is provided "AS IS" without warranties or liability.</p>
       <p class="legal-text">RAWZONE includes open‑source components: LibRaw, OpenEXR, and Emscripten. It is not affiliated with any camera vendor; trademarks are property of their owners. <a href="./third-party-notices.html" rel="noopener">Third‑Party Notices</a> • <a href="./terms.html" rel="noopener">Terms</a> • <a href="./privacy.html" rel="noopener">Privacy</a>.</p>
     </div>
 
@@ -444,23 +444,6 @@
       }
 
       // File System Access helpers (Chromium; Safari/Firefox may not support)
-      async function getUniqueSubdirHandle(parentHandle, baseName) {
-        let name = baseName;
-        let index = 1;
-        while (true) {
-          try {
-            // If exists, try next suffix
-            await parentHandle.getDirectoryHandle(name, { create: false });
-            index++;
-            name = baseName + ' (' + index + ')';
-          } catch (err) {
-            if (err && err.name === 'NotFoundError') {
-              return await parentHandle.getDirectoryHandle(name, { create: true });
-            }
-            throw err;
-          }
-        }
-      }
       async function verifyWritableDirectory(dirHandle) {
         // Request permission
         try {
