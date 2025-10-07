@@ -7,8 +7,13 @@ let moduleRef = null;
 let exrModulePromise = null;
 async function ensureExrModule() {
   if (!exrModulePromise) {
-    const EXR_ENCODER_PATH = '/exr%20test/exr-encoder.js';
-    exrModulePromise = import(EXR_ENCODER_PATH).then(mod => mod && mod.default ? mod.default() : (mod || {}));
+    const EXR_ENCODER_PATH = new URL('./exr%20test/exr-encoder.js', import.meta.url).href;
+    exrModulePromise = import(EXR_ENCODER_PATH).then(mod => {
+      if (mod && typeof mod.default === 'function') {
+        return mod.default({ locateFile: (path) => new URL(path, EXR_ENCODER_PATH).href });
+      }
+      return mod || {};
+    });
   }
   return exrModulePromise;
 }
