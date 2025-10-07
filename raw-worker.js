@@ -3,6 +3,90 @@ import LibRawModule from './libraw.js';
 
 let moduleRef = null;
 
+// Lazy EXR encoder module (OpenEXR WASM) loaded on-demand
+let exrModulePromise = null;
+async function ensureExrModule() {
+  if (!exrModulePromise) {
+    const EXR_ENCODER_PATH = '/exr%20test/exr-encoder.js';
+    exrModulePromise = import(EXR_ENCODER_PATH).then(mod => mod && mod.default ? mod.default() : (mod || {}));
+  }
+  return exrModulePromise;
+}
+
+function mapExrCompressionToEnum(name) {
+  switch ((name || 'DWAA').toUpperCase()) {
+    case 'NONE': return 0;
+    case 'RLE': return 1;
+    case 'ZIPS': return 2;
+    case 'ZIP': return 3;
+    case 'PIZ': return 4;
+    case 'PXR24': return 5;
+    case 'B44': return 6;
+    case 'B44A': return 7;
+    case 'DWAB': return 9;
+    case 'DWAA':
+    default: return 8;
+  }
+}
+
+async function encodeEXRFromRGB16(pixelsU16RGB, width, height, exrOptions, pipeline) {
+  const Module = await ensureExrModule();
+  const includeAlpha = false;
+  const dwaLevel = (exrOptions && typeof exrOptions.dwaLevel === 'number') ? exrOptions.dwaLevel : 45;
+  const compression = mapExrCompressionToEnum(exrOptions && exrOptions.compression);
+  // Color space flags for forward/backward compatibility (ignored by older WASM)
+  let use_ap0 = 0, use_ap1 = 0, use_awg4 = 0;
+  switch ((pipeline || 'ap0-linear')) {
+    case 'acescct': use_ap1 = 1; break;
+    case 'arri-logc4': use_awg4 = 1; break;
+    default: use_ap0 = 1; break;
+  }
+  const numPixels = width * height;
+  // Expand RGB -> RGBA16 with opaque alpha
+  const rgba16 = new Uint16Array(numPixels * 4);
+  for (let i = 0, j = 0; i < numPixels; i++, j += 3) {
+    const k = i * 4;
+    rgba16[k] = pixelsU16RGB[j];
+    rgba16[k + 1] = pixelsU16RGB[j + 1];
+    rgba16[k + 2] = pixelsU16RGB[j + 2];
+    rgba16[k + 3] = 65535;
+  }
+  // Convert to Float32 [0..1]
+  const f32 = new Float32Array(rgba16.length);
+  for (let i = 0; i < rgba16.length; i++) {
+    f32[i] = rgba16[i] / 65535;
+  }
+  const pPixels = Module._malloc(f32.byteLength);
+  Module.HEAPF32.set(f32, pPixels >>> 2);
+  const pSize = Module._malloc(4);
+  const ptr = Module._encode_exr_dwaa_rgba_half(
+    pPixels,
+    width,
+    height,
+    dwaLevel|0,
+    includeAlpha ? 1 : 0,
+    compression|0,
+    pSize,
+    use_ap0|0,
+    use_ap1|0,
+    use_awg4|0
+  );
+  const size = Module.getValue(pSize, 'i32') >>> 0;
+  let out;
+  if (ptr && size > 0) {
+    const view = new Uint8Array(Module.HEAPU8.buffer, ptr, size);
+    out = new Uint8Array(size);
+    out.set(view);
+  } else {
+    out = null;
+  }
+  Module._free(pPixels);
+  Module._free(pSize);
+  if (ptr) Module._free(ptr);
+  if (!out) throw new Error('EXR encode failed');
+  return out;
+}
+
 // One-time 16-bit LUT to decode Rec.709 transfer to linear
 let bt709DecodeLUT = null;
 function initBT709DecodeLUT() {
@@ -310,20 +394,36 @@ self.onmessage = async (e) => {
       applyBT709DecodeInPlace(pixelsU16);
     }
     progress('transformed');
-
-    // Encode baseline uncompressed TIFF, 3 samples, 16-bit unsigned, chunky
-    const spp = 3;
-    const bits = [16, 16, 16];
-    const sampleFormat = [1, 1, 1];
-    const tiffBytes = encodeTiff16le(width, height, spp, bits, sampleFormat, pixelsU16);
-    progress('encoded');
+    // Encode based on requested format
+    const format = (data && data.format) || 'tiff';
+    let outBytes;
+    if (format === 'exr') {
+      const exrOptions = (data && data.exrOptions) || {};
+      const exrBytes = await encodeEXRFromRGB16(pixelsU16, width, height, exrOptions, pipeline);
+      outBytes = exrBytes;
+      progress('encoded');
+    } else {
+      const spp = 3;
+      const bits = [16, 16, 16];
+      const sampleFormat = [1, 1, 1];
+      // Colorimetry tags
+      const colorInfo = getColorimetryForPipeline(pipeline);
+      const imageDesc = colorInfo.description;
+      const tiffBytes = encodeTiff16leWithColorimetry(width, height, spp, bits, sampleFormat, pixelsU16, colorInfo.whitePoint, colorInfo.primaries, imageDesc);
+      outBytes = tiffBytes;
+      progress('encoded');
+    }
 
     // Best-effort cleanup of native resources
     try { instance.close && instance.close(); } catch (_) {}
     try { instance.recycle && instance.recycle(); } catch (_) {}
     try { instance.delete && instance.delete(); } catch (_) {}
 
-    self.postMessage({ jobId, type: 'result', out: tiffBytes }, [tiffBytes.buffer]);
+    if (outBytes instanceof Uint8Array) {
+      self.postMessage({ jobId, type: 'result', out: outBytes }, [outBytes.buffer]);
+    } else {
+      self.postMessage({ jobId, type: 'result', out: outBytes });
+    }
   } catch (err) {
     try {
       const jobId = (e && e.data && e.data.jobId) || undefined;
@@ -408,6 +508,160 @@ function encodeTiff16le(width, height, samplesPerPixel, bitsPerSampleArr, sample
   dv.setUint32(io, 0, true); io += 4;
 
   return new Uint8Array(buf);
+}
+
+// Extended TIFF encoder adding WhitePoint (318), PrimaryChromaticities (319) and ImageDescription (270)
+function encodeTiff16leWithColorimetry(width, height, samplesPerPixel, bitsPerSampleArr, sampleFormatArr, pixelsU16, whitePoint, primaries, imageDescription) {
+  const numPixels = width * height;
+  const bytesPerSample = 2;
+  const imageBytes = numPixels * samplesPerPixel * bytesPerSample;
+
+  const headerBytes = 8; // TIFF header
+  const pixelDataOffset = headerBytes;
+
+  // We'll place BitsPerSample (SHORT[3]) and SampleFormat (SHORT[3]) arrays, then
+  // RATIONAL arrays for WhitePoint (2) and PrimaryChromaticities (6), and finally the ASCII description.
+  const bpsOffset = pixelDataOffset + imageBytes; // SHORT[3]
+  const sfOffset = bpsOffset + bitsPerSampleArr.length * 2; // SHORT[3]
+
+  const TYPE_SHORT = 3;
+  const TYPE_LONG = 4;
+  const TYPE_RATIONAL = 5;
+  const TYPE_ASCII = 2;
+
+  // RATIONAL arrays are pairs of 32-bit numerators/denominators
+  const whitePointCount = 2; // Wx, Wy
+  const primariesCount = 6; // Rx,Ry,Gx,Gy,Bx,By
+  const rationalBytes = 8; // 2x uint32 per rational
+
+  const wpOffset = sfOffset + sampleFormatArr.length * 2; // after SHORT arrays
+  const pcOffset = wpOffset + whitePointCount * rationalBytes;
+
+  const descStr = (imageDescription || '').toString();
+  const descByteLen = descStr.length + 1; // include NUL terminator
+  const descOffset = pcOffset + primariesCount * rationalBytes;
+
+  // IFD entries
+  const extraEntries = 3; // WhitePoint, PrimaryChromaticities, ImageDescription
+  const ifdEntryCount = 12 + extraEntries;
+  const ifdBytes = 2 + ifdEntryCount * 12 + 4;
+  const ifdOffset = descOffset + descByteLen;
+
+  const totalBytes = ifdOffset + ifdBytes;
+  const buf = new ArrayBuffer(totalBytes);
+  const dv = new DataView(buf);
+
+  // Header: II 42 firstIFD
+  let off = 0;
+  dv.setUint8(off++, 0x49); dv.setUint8(off++, 0x49);
+  dv.setUint16(off, 42, true); off += 2;
+  dv.setUint32(off, ifdOffset, true); off += 4;
+
+  // Pixel data
+  let p = pixelDataOffset;
+  for (let i = 0; i < pixelsU16.length; i++) {
+    dv.setUint16(p, pixelsU16[i], true);
+    p += 2;
+  }
+
+  // BitsPerSample array
+  for (let i = 0; i < bitsPerSampleArr.length; i++) dv.setUint16(bpsOffset + i * 2, bitsPerSampleArr[i], true);
+  // SampleFormat array (1=unsigned)
+  for (let i = 0; i < sampleFormatArr.length; i++) dv.setUint16(sfOffset + i * 2, sampleFormatArr[i], true);
+
+  // Helper to write RATIONAL at offset
+  function writeRationalPair(baseOffset, index, num, den) {
+    const o = baseOffset + index * rationalBytes;
+    dv.setUint32(o, num >>> 0, true);
+    dv.setUint32(o + 4, den >>> 0, true);
+  }
+  function toRational(x) {
+    const den = 1000000;
+    const num = Math.round((x || 0) * den);
+    return [num, den];
+  }
+  // WhitePoint Wx, Wy
+  if (whitePoint && whitePoint.length === 2) {
+    const [wxn, wxd] = toRational(whitePoint[0]);
+    const [wyn, wyd] = toRational(whitePoint[1]);
+    writeRationalPair(wpOffset, 0, wxn, wxd);
+    writeRationalPair(wpOffset, 1, wyn, wyd);
+  } else {
+    writeRationalPair(wpOffset, 0, 312700, 1000000); // D65 default
+    writeRationalPair(wpOffset, 1, 329000, 1000000);
+  }
+  // PrimaryChromaticities Rx,Ry,Gx,Gy,Bx,By
+  const pr = (primaries && primaries.r) || [0.64, 0.33];
+  const pg = (primaries && primaries.g) || [0.3, 0.6];
+  const pb = (primaries && primaries.b) || [0.15, 0.06];
+  const vals = [pr[0], pr[1], pg[0], pg[1], pb[0], pb[1]];
+  for (let i = 0; i < 6; i++) {
+    const [n, d] = toRational(vals[i]);
+    writeRationalPair(pcOffset, i, n, d);
+  }
+
+  // ImageDescription ASCII + NUL
+  for (let i = 0; i < descStr.length; i++) dv.setUint8(descOffset + i, descStr.charCodeAt(i) & 0xff);
+  dv.setUint8(descOffset + descStr.length, 0);
+
+  // IFD entries
+  let io = ifdOffset;
+  dv.setUint16(io, ifdEntryCount, true); io += 2;
+  function entry(tag, type, count, valueOrOffset) {
+    dv.setUint16(io, tag, true); io += 2;
+    dv.setUint16(io, type, true); io += 2;
+    dv.setUint32(io, count >>> 0, true); io += 4;
+    dv.setUint32(io, valueOrOffset >>> 0, true); io += 4;
+  }
+
+  const stripOffset = pixelDataOffset;
+  const stripByteCount = imageBytes;
+
+  entry(256, TYPE_LONG, 1, width);                // ImageWidth
+  entry(257, TYPE_LONG, 1, height);               // ImageLength
+  entry(258, TYPE_SHORT, bitsPerSampleArr.length, bpsOffset); // BitsPerSample
+  entry(259, TYPE_SHORT, 1, 1);                   // Compression = None
+  entry(262, TYPE_SHORT, 1, 2);                   // Photometric = RGB
+  entry(273, TYPE_LONG, 1, stripOffset);          // StripOffsets
+  entry(277, TYPE_SHORT, 1, samplesPerPixel);     // SamplesPerPixel
+  entry(278, TYPE_LONG, 1, height);               // RowsPerStrip
+  entry(279, TYPE_LONG, 1, stripByteCount);       // StripByteCounts
+  entry(284, TYPE_SHORT, 1, 1);                   // PlanarConfiguration = Chunky
+  entry(339, TYPE_SHORT, sampleFormatArr.length, sfOffset); // SampleFormat
+  entry(274, TYPE_SHORT, 1, 1);                   // Orientation = Top-left
+  entry(318, TYPE_RATIONAL, 2, wpOffset);         // WhitePoint
+  entry(319, TYPE_RATIONAL, 6, pcOffset);         // PrimaryChromaticities
+  entry(270, TYPE_ASCII, descByteLen, descOffset);// ImageDescription
+
+  // next IFD = 0
+  dv.setUint32(io, 0, true); io += 4;
+
+  return new Uint8Array(buf);
+}
+
+function getColorimetryForPipeline(pipeline) {
+  const p = (pipeline || 'ap0-linear');
+  if (p === 'acescct') {
+    // ACES AP1 primaries, D60 white
+    return {
+      whitePoint: [0.32168, 0.33767],
+      primaries: { r: [0.713, 0.293], g: [0.165, 0.830], b: [0.128, 0.044] },
+      description: 'ACEScct (AP1)'
+    };
+  } else if (p === 'arri-logc4') {
+    // ARRI Wide Gamut 4 primaries, D65 white
+    return {
+      whitePoint: [0.3127, 0.3290],
+      primaries: { r: [0.7347, 0.2653], g: [0.1424, 0.8576], b: [0.0991, -0.0308] },
+      description: 'ARRI LogC4 (AWG4)'
+    };
+  }
+  // Default: ACES AP0, D60 white
+  return {
+    whitePoint: [0.32168, 0.33767],
+    primaries: { r: [0.7347, 0.2653], g: [0.0000, 1.0000], b: [0.0001, -0.0770] },
+    description: 'ACES2065-1 (AP0 Linear)'
+  };
 }
 
 

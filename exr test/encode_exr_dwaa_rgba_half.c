@@ -60,7 +60,10 @@ static int64_t sink_write(
 #define EXPORTED
 #endif
 
-EXPORTED uint8_t* encode_exr_dwaa_rgba_half(const float* pixels, int width, int height, int dwa_level, int include_alpha, int compression, size_t* out_size)
+// Added color space metadata parameters: use_ap0 (1 for ACES AP0), use_ap1 (1 for ACES AP1), use_awg4 (1 for ARRI AWG4)
+// If multiple are 0, defaults to AP0. White point for AP0/AP1 is D60, for AWG4 is D65.
+EXPORTED uint8_t* encode_exr_dwaa_rgba_half(const float* pixels, int width, int height, int dwa_level, int include_alpha, int compression, size_t* out_size,
+                                            int use_ap0, int use_ap1, int use_awg4)
 {
     if (!pixels || width <= 0 || height <= 0 || !out_size) return NULL;
 
@@ -91,6 +94,34 @@ EXPORTED uint8_t* encode_exr_dwaa_rgba_half(const float* pixels, int width, int 
     (void)exr_set_lineorder(ctxt, part_index, EXR_LINEORDER_INCREASING_Y);
     if (ctype == EXR_COMPRESSION_DWAA || ctype == EXR_COMPRESSION_DWAB) {
         (void)exr_set_dwa_compression_level(ctxt, part_index, (float)dwa_level);
+    }
+
+    // Chromaticities (set based on requested color space)
+    exr_attr_chromaticities_t chroma;
+    memset(&chroma, 0, sizeof(chroma));
+    if (use_awg4) {
+        // ARRI Wide Gamut 4, D65
+        chroma.red_x = 0.7347f; chroma.red_y = 0.2653f;
+        chroma.green_x = 0.1424f; chroma.green_y = 0.8576f;
+        chroma.blue_x = 0.0991f; chroma.blue_y = -0.0308f;
+        chroma.white_x = 0.3127f; chroma.white_y = 0.3290f;
+        (void)exr_attr_set_chromaticities(ctxt, part_index, "chromaticities", &chroma);
+        (void)exr_attr_set_string(ctxt, part_index, "colorspace", "ARRI LogC4 (AWG4)");
+    } else if (use_ap1) {
+        // ACES AP1, D60
+        chroma.red_x = 0.713f; chroma.red_y = 0.293f;
+        chroma.green_x = 0.165f; chroma.green_y = 0.830f;
+        chroma.blue_x = 0.128f; chroma.blue_y = 0.044f;
+        chroma.white_x = 0.32168f; chroma.white_y = 0.33767f;
+        (void)exr_attr_set_chromaticities(ctxt, part_index, "chromaticities", &chroma);
+        (void)exr_attr_set_string(ctxt, part_index, "colorspace", "ACEScct (AP1)");
+    } else /* default AP0 */ {
+        chroma.red_x = 0.7347f; chroma.red_y = 0.2653f;
+        chroma.green_x = 0.0000f; chroma.green_y = 1.0000f;
+        chroma.blue_x = 0.0001f; chroma.blue_y = -0.0770f;
+        chroma.white_x = 0.32168f; chroma.white_y = 0.33767f;
+        (void)exr_attr_set_chromaticities(ctxt, part_index, "chromaticities", &chroma);
+        (void)exr_attr_set_string(ctxt, part_index, "colorspace", "ACES2065-1 (AP0 Linear)");
     }
 
     (void)exr_add_channel(ctxt, part_index, "R", EXR_PIXEL_HALF, EXR_PERCEPTUALLY_LOGARITHMIC, 1, 1);
