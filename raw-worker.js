@@ -15,12 +15,7 @@ async function ensureExrModule() {
       }
       return mod || {};
     };
-    exrModulePromise = (async () => {
-      try {
-        return await tryLoad('./exr-test/exr-encoder.js');
-      } catch (_) {}
-      return await tryLoad('./exr%20test/exr-encoder.js');
-    })();
+    exrModulePromise = tryLoad('./exr/exr-encoder.js');
   }
   return exrModulePromise;
 }

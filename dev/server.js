@@ -2,7 +2,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
-const root = __dirname;
+const root = path.join(__dirname, '..');
 const port = process.env.PORT || 8081;
 
 const mime = {
@@ -21,7 +21,6 @@ const server = http.createServer((req, res) => {
   let p = rawPath === '/' ? 'index.html' : rawPath;
   try { p = decodeURIComponent(p); } catch (_) {}
   if (p.startsWith('/')) p = p.slice(1);
-  // No demo aliases; serve files as-is
   let filePath = path.join(root, p);
   if (!filePath.startsWith(root)) {
     res.writeHead(403);
@@ -37,7 +36,6 @@ const server = http.createServer((req, res) => {
     const ext = path.extname(filePath).toLowerCase();
     const type = mime[ext] || 'application/octet-stream';
     res.setHeader('Content-Type', type);
-    // Required for SharedArrayBuffer/pthreads
     res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
     res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
     res.end(data);

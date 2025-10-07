@@ -3,6 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' blob: data:; worker-src 'self' blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'">
     <title>RAWZONE</title>
     <meta name="description" content="Convert RAW Photos to Log and ACES in Chrome">
     <meta property="og:type" content="website">
@@ -264,8 +265,8 @@
     </div>
 
     <div class="legal-card">
-      <p class="legal-text">This tool was vibe-coded by <a href="https://afinch.com" rel="noopener" target="_blank">Andrew</a> and it's provided "AS IS" without warranties or liability, so don't sue me if it messes up your nice photos or computer.</p>
-      <p class="legal-text">RAWZONE includes open‑source components: LibRaw (LGPL‑2.1/CDDL), OpenEXR (BSD‑3‑Clause), Emscripten (MIT) and is not affiliated with any camera vendor; trademarks are property of their owners. <a href="./third-party-notices.html" rel="noopener">Third‑Party Notices</a>.</p>
+      <p class="legal-text">This tool was vibe-coded by <a href="https://www.afinch.com" rel="noopener" target="_blank">Andrew</a>. It runs entirely in your browser. Images you select are processed on your computer and are never uploaded to a server. In fact it will work without an internet connection. Also this tool is provided "AS IS" without warranties or liability.</p>
+      <p class="legal-text">RAWZONE includes open‑source components: LibRaw, OpenEXR, and Emscripten. It is not affiliated with any camera vendor; trademarks are property of their owners. <a href="./third-party-notices.html" rel="noopener">Third‑Party Notices</a> • <a href="./terms.html" rel="noopener">Terms</a> • <a href="./privacy.html" rel="noopener">Privacy</a>.</p>
     </div>
 
     <div id="infoModal" class="modal" style="display:none;">
