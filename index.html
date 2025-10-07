@@ -213,26 +213,11 @@
         <div class="select">
           <select id="format" title="Output format">
             <option value="tiff">TIFF (16-bit)</option>
-            <option value="exr">OpenEXR (HALF)</option>
+            <option value="exr-dwaa">EXR DWAA</option>
+            <option value="exr-piz">EXR PIZ</option>
+            <option value="exr-zips">EXR ZIPS</option>
+            <option value="exr-none">EXR Uncmp.</option>
           </select>
-          </div>
-          <div id="exrControls" class="row" style="display:none; gap: var(--space-2);">
-            <div class="select">
-              <select id="exrCompression" title="EXR compression">
-                <option value="DWAA" selected>DWAA</option>
-                <option value="DWAB">DWAB</option>
-                <option value="PIZ">PIZ</option>
-                <option value="ZIP">ZIP</option>
-                <option value="ZIPS">ZIPS</option>
-                <option value="RLE">RLE</option>
-                <option value="NONE">None</option>
-              </select>
-            </div>
-            <div id="dwaWrap" class="row" style="align-items:center; gap: var(--space-2);">
-              <label for="dwaLevel" class="file-name" style="min-width:auto;">DWA</label>
-              <input id="dwaLevel" type="range" min="1" max="250" value="45" />
-              <span id="dwaValue" class="file-name" style="min-width:auto;">45</span>
-            </div>
           </div>
         </div>
         <div class="right-controls">
@@ -278,10 +263,6 @@
       const fileEl = document.getElementById('file');
       const pipelineEl = document.getElementById('pipeline');
       const formatEl = document.getElementById('format');
-      const exrControls = document.getElementById('exrControls');
-      const exrCompressionEl = document.getElementById('exrCompression');
-      const dwaLevelEl = document.getElementById('dwaLevel');
-      const dwaValueEl = document.getElementById('dwaValue');
       const processBtn = document.getElementById('process');
       const cancelBtn = document.getElementById('cancel');
       const chooseDestBtn = document.getElementById('chooseDest');
@@ -298,18 +279,16 @@
         logEl.textContent = message;
       }
 
-      function updateExrControlsVisibility() {
-        const fmt = formatEl.value;
-        exrControls.style.display = (fmt === 'exr') ? 'flex' : 'none';
-        const comp = (exrCompressionEl && exrCompressionEl.value) || 'DWAA';
-        const isDwa = comp === 'DWAA' || comp === 'DWAB';
-        const dwaWrap = document.getElementById('dwaWrap');
-        if (dwaWrap) dwaWrap.style.display = isDwa ? 'flex' : 'none';
+      function getSelectedFormatInfo() {
+        const v = formatEl.value;
+        switch (v) {
+          case 'exr-dwaa': return { type: 'exr', compression: 'DWAA', dwaLevel: 30, suffix: 'dwaa30' };
+          case 'exr-piz': return { type: 'exr', compression: 'PIZ', suffix: 'piz' };
+          case 'exr-zips': return { type: 'exr', compression: 'ZIPS', suffix: 'zips' };
+          case 'exr-none': return { type: 'exr', compression: 'NONE', suffix: 'none' };
+          default: return { type: 'tiff' };
+        }
       }
-      if (formatEl) formatEl.addEventListener('change', updateExrControlsVisibility);
-      if (exrCompressionEl) exrCompressionEl.addEventListener('change', updateExrControlsVisibility);
-      if (dwaLevelEl && dwaValueEl) dwaLevelEl.addEventListener('input', () => { dwaValueEl.textContent = String(dwaLevelEl.value); });
-      updateExrControlsVisibility();
 
       const CPU = Math.max(1, (navigator.hardwareConcurrency || 2) - 1);
       const POOL_SIZE = Math.min(3, CPU);
@@ -582,11 +561,9 @@
         (async () => {
           try {
             const buffer = await file.arrayBuffer();
-            const selectedFormat = formatEl.value;
-            const exrOptions = (selectedFormat === 'exr') ? {
-              compression: (exrCompressionEl && exrCompressionEl.value) || 'DWAA',
-              dwaLevel: (dwaLevelEl && parseInt(dwaLevelEl.value)) || 45
-            } : undefined;
+            const fmtInfo = getSelectedFormatInfo();
+            const selectedFormat = (fmtInfo.type === 'exr') ? 'exr' : 'tiff';
+            const exrOptions = (fmtInfo.type === 'exr') ? Object.assign({ compression: fmtInfo.compression }, (typeof fmtInfo.dwaLevel === 'number' ? { dwaLevel: fmtInfo.dwaLevel } : {})) : undefined;
             worker.postMessage({ cmd: 'process', jobId, bytes: buffer, settings, pipeline, format: selectedFormat, exrOptions }, [buffer]);
             // Timeout guard
             timerId = setTimeout(() => {
@@ -623,7 +600,8 @@
 
       async function processFile(file) {
         const pipeline = pipelineEl.value;
-        const selectedFormat = formatEl.value;
+        const fmtInfo = getSelectedFormatInfo();
+        const selectedFormat = fmtInfo.type;
         const { jobId, out } = await enqueueJob(file, pipeline);
         let blob, outputName;
         if (selectedFormat === 'exr') {
@@ -632,9 +610,8 @@
           const pipeSuffix = (pipeline === 'acescct' ? '_acescct16'
                               : pipeline === 'arri-logc4' ? '_arri_logc4_16'
                               : '_ap0_linear16');
-          const comp = (exrCompressionEl && exrCompressionEl.value) ? exrCompressionEl.value.toLowerCase() : 'dwaa';
-          const dwa = (comp === 'dwaa' || comp === 'dwab') && dwaLevelEl ? String(parseInt(dwaLevelEl.value) || 45) : '';
-          const exrSuffix = pipeSuffix + '_' + comp + (dwa ? dwa : '') + '.exr';
+          const compSuffix = (fmtInfo && fmtInfo.suffix) ? fmtInfo.suffix : 'dwaa30';
+          const exrSuffix = pipeSuffix + '_' + compSuffix + '.exr';
           outputName = base + exrSuffix;
         } else {
           blob = new Blob([out], { type: 'image/tiff' });
