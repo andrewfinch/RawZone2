@@ -49,22 +49,19 @@ async function encodeEXRFromRGB16(pixelsU16RGB, width, height, exrOptions, pipel
     default: use_ap0 = 1; break;
   }
   const numPixels = width * height;
-  // Expand RGB -> RGBA16 with opaque alpha
-  const rgba16 = new Uint16Array(numPixels * 4);
-  for (let i = 0, j = 0; i < numPixels; i++, j += 3) {
-    const k = i * 4;
-    rgba16[k] = pixelsU16RGB[j];
-    rgba16[k + 1] = pixelsU16RGB[j + 1];
-    rgba16[k + 2] = pixelsU16RGB[j + 2];
-    rgba16[k + 3] = 65535;
+  const rgbaFloatCount = numPixels * 4;
+  const pPixels = Module._malloc(rgbaFloatCount * 4);
+  if (!pPixels) throw new Error('EXR pixel allocation failed');
+  // Write normalized RGBA floats directly into WASM heap to avoid large JS-side temp buffers.
+  const heapF32 = Module.HEAPF32;
+  const base = pPixels >>> 2;
+  for (let i = 0, j = 0, k = base; i < numPixels; i++, j += 3, k += 4) {
+    // Keep normalization operation identical to previous implementation.
+    heapF32[k] = pixelsU16RGB[j] / 65535;
+    heapF32[k + 1] = pixelsU16RGB[j + 1] / 65535;
+    heapF32[k + 2] = pixelsU16RGB[j + 2] / 65535;
+    heapF32[k + 3] = 1.0;
   }
-  // Convert to Float32 [0..1]
-  const f32 = new Float32Array(rgba16.length);
-  for (let i = 0; i < rgba16.length; i++) {
-    f32[i] = rgba16[i] / 65535;
-  }
-  const pPixels = Module._malloc(f32.byteLength);
-  Module.HEAPF32.set(f32, pPixels >>> 2);
   const pSize = Module._malloc(4);
   const ptr = Module._encode_exr_dwaa_rgba_half(
     pPixels,
@@ -261,6 +258,9 @@ function ensureLogC4Consts() {
 function apply709ToAWG4LogC4InPlace(u16) {
   const lut = initBT709DecodeLUT();
   const M = ensureAp0ToAwg4Matrix();
+  const m00 = M[0], m01 = M[1], m02 = M[2];
+  const m10 = M[3], m11 = M[4], m12 = M[5];
+  const m20 = M[6], m21 = M[7], m22 = M[8];
   const inv65535 = 1 / 65535;
   const { a, b, c, s, t } = ensureLogC4Consts();
   for (let i = 0; i < u16.length; i += 3) {
@@ -268,12 +268,14 @@ function apply709ToAWG4LogC4InPlace(u16) {
     const r = lut[u16[i]] * inv65535;
     const g = lut[u16[i + 1]] * inv65535;
     const bl = lut[u16[i + 2]] * inv65535;
-    // AP0 -> AWG4
-    const v = mat3MultiplyVec3(M, [r, g, bl]);
+    // AP0 -> AWG4 (expanded inline to avoid per-pixel array allocations)
+    const vr = m00 * r + m01 * g + m02 * bl;
+    const vg = m10 * r + m11 * g + m12 * bl;
+    const vb = m20 * r + m21 * g + m22 * bl;
     // LogC4 encode per channel
-    u16[i] = encodeLogC4ToU16(v[0], a, b, c, s, t);
-    u16[i + 1] = encodeLogC4ToU16(v[1], a, b, c, s, t);
-    u16[i + 2] = encodeLogC4ToU16(v[2], a, b, c, s, t);
+    u16[i] = encodeLogC4ToU16(vr, a, b, c, s, t);
+    u16[i + 1] = encodeLogC4ToU16(vg, a, b, c, s, t);
+    u16[i + 2] = encodeLogC4ToU16(vb, a, b, c, s, t);
   }
 }
 function encodeLogC4ToU16(E, a, b, c, s, t) {
@@ -298,12 +300,14 @@ async function ensureModule() {
 }
 
 self.onmessage = async (e) => {
+  let instance = null;
   try {
     const data = e.data || {};
     if (data.cmd !== 'process') return;
     const bytes = data.bytes; // ArrayBuffer
     const settings = data.settings || {};
     const jobId = data.jobId;
+    if (!(bytes instanceof ArrayBuffer)) throw new Error('Missing input bytes');
 
     function progress(stage) {
       try {
@@ -313,7 +317,7 @@ self.onmessage = async (e) => {
 
     const mod = await ensureModule();
     const LibRawClass = mod.LibRaw;
-    const instance = new LibRawClass();
+    instance = new LibRawClass();
     // Force linear pipeline: gamma 1.0, preserve color behavior with noAutoScale=false
     const linearSettings = Object.assign({}, settings, {
       noAutoBright: true,
@@ -406,8 +410,7 @@ self.onmessage = async (e) => {
     let outBytes;
     if (format === 'exr') {
       const exrOptions = (data && data.exrOptions) || {};
-      const exrBytes = await encodeEXRFromRGB16(pixelsU16, width, height, exrOptions, pipeline);
-      outBytes = exrBytes;
+      outBytes = await encodeEXRFromRGB16(pixelsU16, width, height, exrOptions, pipeline);
       progress('encoded');
     } else {
       const spp = 3;
@@ -416,15 +419,9 @@ self.onmessage = async (e) => {
       // Colorimetry tags
       const colorInfo = getColorimetryForPipeline(pipeline);
       const imageDesc = colorInfo.description;
-      const tiffBytes = encodeTiff16leWithColorimetry(width, height, spp, bits, sampleFormat, pixelsU16, colorInfo.whitePoint, colorInfo.primaries, imageDesc);
-      outBytes = tiffBytes;
+      outBytes = encodeTiff16leWithColorimetry(width, height, spp, bits, sampleFormat, pixelsU16, colorInfo.whitePoint, colorInfo.primaries, imageDesc);
       progress('encoded');
     }
-
-    // Best-effort cleanup of native resources
-    try { instance.close && instance.close(); } catch (_) {}
-    try { instance.recycle && instance.recycle(); } catch (_) {}
-    try { instance.delete && instance.delete(); } catch (_) {}
 
     if (outBytes instanceof Uint8Array) {
       self.postMessage({ jobId, type: 'result', out: outBytes }, [outBytes.buffer]);
@@ -437,6 +434,13 @@ self.onmessage = async (e) => {
       self.postMessage({ jobId, type: 'error', error: err && err.message ? err.message : String(err) });
     } catch (_) {
       self.postMessage({ type: 'error', error: err && err.message ? err.message : String(err) });
+    }
+  } finally {
+    // Always release LibRaw native resources, including on errors.
+    if (instance) {
+      try { instance.close && instance.close(); } catch (_) {}
+      try { instance.recycle && instance.recycle(); } catch (_) {}
+      try { instance.delete && instance.delete(); } catch (_) {}
     }
   }
 };

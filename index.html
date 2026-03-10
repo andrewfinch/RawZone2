@@ -363,6 +363,56 @@
         }
       }
 
+      function getBatchProcessingProfile(files, fmtInfo) {
+        let largestInputBytes = 0;
+        for (let i = 0; i < files.length; i++) {
+          largestInputBytes = Math.max(largestInputBytes, files[i] && files[i].size ? files[i].size : 0);
+        }
+        const isExr = fmtInfo && fmtInfo.type === 'exr';
+        const isLarge = largestInputBytes >= LARGE_RAW_THRESHOLD_BYTES;
+        const isVeryLarge = largestInputBytes >= VERY_LARGE_RAW_THRESHOLD_BYTES;
+        if (isExr && isVeryLarge) {
+          return {
+            activeLimit: 1,
+            recycleEvery: 1,
+            note: 'Large EXR batch mode: serial processing with worker recycle every file.'
+          };
+        }
+        if (isExr && isLarge) {
+          return {
+            activeLimit: 1,
+            recycleEvery: 2,
+            note: 'Large EXR batch mode: serial processing to reduce memory pressure.'
+          };
+        }
+        if (isExr) {
+          return {
+            activeLimit: Math.min(2, DEFAULT_ACTIVE_LIMIT),
+            recycleEvery: 4,
+            note: 'EXR mode: reducing worker parallelism for stability.'
+          };
+        }
+        if (isVeryLarge) {
+          return {
+            activeLimit: 1,
+            recycleEvery: 3,
+            note: 'Large RAW mode: serial processing with frequent worker recycle.'
+          };
+        }
+        if (isLarge) {
+          return {
+            activeLimit: Math.min(2, DEFAULT_ACTIVE_LIMIT),
+            recycleEvery: 6,
+            note: 'Large RAW mode: reduced worker parallelism.'
+          };
+        }
+        return {
+          activeLimit: DEFAULT_ACTIVE_LIMIT,
+          recycleEvery: DEFAULT_MAX_JOBS_PER_WORKER,
+          note: ''
+        };
+      }
+
       function createRawWorker() {
         const w = new Worker('./raw-worker.js', { type: 'module' });
         try {
@@ -386,10 +436,15 @@
       let nextJobId = 1;
       let cancelled = false;
       const inFlight = new Map(); // worker -> job
-      let ACTIVE_LIMIT = POOL_SIZE;
+      const DEFAULT_ACTIVE_LIMIT = POOL_SIZE;
+      let ACTIVE_LIMIT = DEFAULT_ACTIVE_LIMIT;
       let activeCount = 0;
       const jobTimeoutMs = 10 * 60 * 1000; // 10 minutes safety timeout
-      const maxJobsPerWorker = 10; // periodically recycle workers to avoid fragmentation
+      const DEFAULT_MAX_JOBS_PER_WORKER = 10; // periodically recycle workers to avoid fragmentation
+      let maxJobsPerWorker = DEFAULT_MAX_JOBS_PER_WORKER;
+      const LARGE_RAW_THRESHOLD_BYTES = 60 * 1024 * 1024;
+      const VERY_LARGE_RAW_THRESHOLD_BYTES = 100 * 1024 * 1024;
+      const MEMORY_PRESSURE_PATTERN = /out\s*of\s*memory|cannot\s*enlarge\s*memory|invalid\s+typed\s+array\s+length|allocation\s+failed|memory\s+access\s+out\s+of\s+bounds|abort\((?:oom|cannot enlarge memory)\)/i;
       const processedByWorker = new Map();
       let chosenDirHandle = null; // Optional user-selected output directory
       let outputDirHandle = null; // Actual directory used for this run
@@ -610,10 +665,12 @@
           worker.removeEventListener('message', onMsg);
           inFlight.delete(worker);
           if (timerId) { clearTimeout(timerId); timerId = null; }
+          const errMsg = data.type === 'error' ? (data.error || 'Unknown error') : '';
+          const memoryPressure = data.type === 'error' && MEMORY_PRESSURE_PATTERN.test(errMsg);
           // Recycle workers periodically
           const processed = (processedByWorker.get(worker) || 0) + 1;
           processedByWorker.set(worker, processed);
-          if (processed >= maxJobsPerWorker) {
+          if (memoryPressure || processed >= maxJobsPerWorker) {
             try { worker.terminate(); } catch (_) {}
             processedByWorker.delete(worker);
             const nw = createRawWorker();
@@ -626,11 +683,11 @@
           if (data.type === 'result') {
             resolve(data);
           } else if (data.type === 'error') {
-            const errMsg = data.error || 'Unknown error';
             // Heuristic: reduce concurrency on memory pressure
-            if (/out\s*of\s*memory|cannot\s*enlarge\s*memory|wasm/i.test(errMsg)) {
+            if (memoryPressure) {
               if (ACTIVE_LIMIT > 1) {
                 ACTIVE_LIMIT = 1;
+                maxJobsPerWorker = 1;
                 log('Memory pressure detected. Reducing concurrency to 1.');
               }
             }
@@ -656,10 +713,14 @@
               try { worker.removeEventListener('message', onMsg); } catch (_) {}
               inFlight.delete(worker);
               try { worker.terminate(); } catch (_) {}
+              processedByWorker.delete(worker);
               const nw = createRawWorker();
               idle.add(nw);
               if (timerId) { clearTimeout(timerId); timerId = null; }
               activeCount--;
+              try { setJobProgress(job.jobId, 1); } catch (_) {}
+              try { finishJob(job.jobId); } catch (_) {}
+              try { failureCount++; } catch (_) {}
               schedule();
               reject(new Error('Timeout'));
             }, jobTimeoutMs);
@@ -667,6 +728,10 @@
             worker.removeEventListener('message', onMsg);
             inFlight.delete(worker);
             idle.add(worker);
+            activeCount = Math.max(0, activeCount - 1);
+            try { setJobProgress(job.jobId, 1); } catch (_) {}
+            try { finishJob(job.jobId); } catch (_) {}
+            try { failureCount++; } catch (_) {}
             schedule();
             reject(err);
           }
@@ -756,8 +821,14 @@
           log('Please choose RAW file(s).');
           return;
         }
+        const fmtInfo = getSelectedFormatInfo();
+        const profile = getBatchProcessingProfile(files, fmtInfo);
+        ACTIVE_LIMIT = profile.activeLimit;
+        maxJobsPerWorker = profile.recycleEvery;
+        processedByWorker.clear();
         // Reset progress for this batch
         resetProgress(files.length);
+        if (profile.note) log(profile.note);
         // Decide output directory for this run
         outputDirHandle = null;
         if (chosenDirHandle) {
@@ -823,6 +894,7 @@
           const job = inFlight.get(w);
           try { job && job.reject && job.reject(new Error('Cancelled')); } catch (_) {}
           try { w.terminate(); } catch (_) {}
+          processedByWorker.delete(w);
           inFlight.delete(w);
           activeCount = Math.max(0, activeCount - 1);
           // Replace with a new worker ready to accept work
